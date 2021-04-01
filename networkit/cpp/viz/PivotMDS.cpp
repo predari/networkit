@@ -66,6 +66,7 @@ void PivotMDS::run() {
 
     CSRMatrix C(n, numPivots, triplets);
 
+
     // compute C^T * C
     CSRMatrix CC = CSRMatrix::mTmMultiply(C, C);
     CC.sort();

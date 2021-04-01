@@ -370,5 +370,8 @@ inline void Vector::parallelForElements(L handle) const {
     }
 }
 
+
+  
 } /* namespace NetworKit */
 #endif // NETWORKIT_ALGEBRAIC_VECTOR_HPP_
+

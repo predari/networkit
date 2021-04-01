@@ -44,6 +44,8 @@ double Vector::mean() const {
     return sum / (double) this->getDimension();
 }
 
+  
+  
 bool Vector::operator==(const Vector &other) const {
     if (getDimension() != other.getDimension() || isTransposed() != other.isTransposed()) return false;
 
@@ -154,6 +156,9 @@ Vector& Vector::operator-=(const double value) {
     return *this;
 }
 
+
+
+  
 
 } /* namespace NetworKit */
 
