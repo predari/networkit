@@ -30,10 +30,10 @@ MaxentStress::MaxentStress(const Graph &G, const count dim, const count k, doubl
             this->solver = Lamg<CSRMatrix>(tolerance);
             break;
         case CONJUGATE_GRADIENT_IDENTITY_PRECONDITIONER:
-            this->solver = ConjugateGradient<CSRMatrix, IdentityPreconditioner>(tolerance);
+	  this->solver = ConjugateGradient<CSRMatrix, IdentityPreconditioner<CSRMatrix>>(tolerance);
             break;
         case CONJUGATE_GRADIENT_DIAGONAL_PRECONDITIONER:
-            this->solver = ConjugateGradient<CSRMatrix, DiagonalPreconditioner>(tolerance);
+	  this->solver = ConjugateGradient<CSRMatrix, DiagonalPreconditioner<CSRMatrix>>(tolerance);
     }
     computeKnownDistances(k, graphDistance);
 }
@@ -44,10 +44,10 @@ MaxentStress::MaxentStress(const Graph &G, const count dim, const std::vector<Po
             this->solver = Lamg<CSRMatrix>(tolerance);
             break;
         case CONJUGATE_GRADIENT_IDENTITY_PRECONDITIONER:
-            this->solver = ConjugateGradient<CSRMatrix, IdentityPreconditioner>(tolerance);
+            this->solver = ConjugateGradient<CSRMatrix, IdentityPreconditioner<CSRMatrix>>(tolerance);
             break;
         case CONJUGATE_GRADIENT_DIAGONAL_PRECONDITIONER:
-            this->solver = ConjugateGradient<CSRMatrix, DiagonalPreconditioner>(tolerance);
+            this->solver = ConjugateGradient<CSRMatrix, DiagonalPreconditioner<CSRMatrix>>(tolerance);
     }
     vertexCoordinates = coordinates;
     computeKnownDistances(k, graphDistance);

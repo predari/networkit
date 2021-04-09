@@ -17,6 +17,7 @@ namespace NetworKit {
  * Simple preconditioner that approximates the matrix by a
  * diagonal matrix.
  */
+  template<class Matrix>
 class DiagonalPreconditioner {
 public:
     /** Default constructor */
@@ -26,7 +27,7 @@ public:
      * Constructs a diagonal preconditioner for the matrix @a A.
      * @param A
      */
-    DiagonalPreconditioner(const CSRMatrix& A) : inv_diag(A.numberOfRows()) {
+    DiagonalPreconditioner(const Matrix& A) : inv_diag(A.numberOfRows()) {
         assert(A.numberOfColumns() == A.numberOfRows());
 
         // Diagonal preconditioner just needs to store the inverse diagonal of A

@@ -500,7 +500,7 @@ void ApproxElectricalCloseness::run() {
                 epsilon * kappa
                 / (std::sqrt(static_cast<double>((n * G.numberOfEdges())) * std::log(n)) * diam
                    * 3.);
-            ConjugateGradient<CSRMatrix, DiagonalPreconditioner> cg(tol);
+            ConjugateGradient<CSRMatrix, DiagonalPreconditioner<CSRMatrix>> cg(tol);
             cg.setupConnected(L);
 
             Vector rhs(n);

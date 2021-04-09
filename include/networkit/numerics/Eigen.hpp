@@ -1,76 +1,34 @@
 /*
- * Eigen.h
+ * Lanczos.h
  *
  *  Created on: 30.03.2021
  *      Author: Maria Predari (predarim@hu-berlin.de)
  */
 
+#include <iostream>
+// fabs
+#include <cmath>
+
+
 #ifndef NETWORKIT_NUMERICS_EIGEN_HPP_
 #define NETWORKIT_NUMERICS_EIGEN_HPP_
 
+#include <networkit/algebraic/CSRMatrix.hpp>
+#include <networkit/algebraic/DynamicMatrix.hpp>
+#include <networkit/base/Algorithm.hpp>
 #include <networkit/algebraic/Vector.hpp>
 #include <networkit/auxiliary/Timer.hpp>
-// #include <networkit/algebraic/CSRMatrix.hpp>
+#include <networkit/algebraic/SymTriMatrix.hpp>
+#include <networkit/numerics/ConjugateGradient.hpp>
+#include <networkit/numerics/Preconditioner/DiagonalPreconditioner.hpp>
+#include <networkit/numerics/Preconditioner/IdentityPreconditioner.hpp>
+
+
 namespace NetworKit {
 
 /**
- * @brief A symmetric tridiagonal matrix.
- * @details
- * 
- * @tparam T Element data type.
- */
-template <typename T>
-class symm_tridiag_matrix {
-public:
-    symm_tridiag_matrix(int n)
-        : alpha_(n), beta_(n - 1) {}
-
-    int size() const { return alpha_.size(); }
-    void resize(int n);
-    void remove_forward(int i);
-    void remove_backward(int i);
-
-    const T &alpha(int i) const { return alpha_[i]; }
-    const T &beta(int i) const { return beta_[i]; }
-
-    T &alpha(int i) { return alpha_[i]; }
-    T &beta(int i) { return beta_[i]; }
-
-    const T *alpha_data() const { return alpha_.data(); }
-    const T *beta_data() const { return beta_.data(); }
-
-    T *alpha_data() { return alpha_.data(); }
-    T *beta_data() { return beta_.data(); }
-
-private:
-  std::vector<T> alpha_; /**< main diagonal entries */
-  std::vector<T> beta_; /**< diagonal entries below or above the main diagonal */
-};
-
-template <typename T>
-void symm_tridiag_matrix<T>::resize(int n) {
-    alpha_.resize(n);
-    beta_.resize(n - 1);
-}
-
-template <typename T>
-void symm_tridiag_matrix<T>::remove_forward(int i) {
-    assert(i < size() - 1);
-    alpha_.erase(alpha_.begin() + i);
-    beta_.erase(beta_.begin() + i);
-}
-
-template <typename T>
-void symm_tridiag_matrix<T>::remove_backward(int i) {
-    assert(i > 0);
-    alpha_.erase(alpha_.begin() + i);
-    beta_.erase(beta_.begin() - 1 + i);
-}
-
-
-/**
- * @brief   Lanczos algorithm for eigendecomposition.
- * 
+ * @ingroup numerics
+ * @brief   Implementation of Lanczos.
  * @param   matrix  CSR matrix to decompose
  * @param   k       number of largest eigenvalues to compute
  * @param   steps   maximum steps for the iteration
@@ -78,18 +36,245 @@ void symm_tridiag_matrix<T>::remove_backward(int i) {
  * @return  list of eigenvalues
  */
 
+  
+ 
+template<class Matrix, typename T>
+class Lanczos : public Algorithm {
+    
+public:
+    Lanczos(){};
+    Lanczos(const Matrix & A);
+    Lanczos(const Matrix & A, const int k, int a, int skip, bool double_precision = false);
+    
+    ~Lanczos() override = default;
+
+    void setup(const int k, int a, int skip, bool double_precision = false);
+
+    
+    void run() override;
+
+    std::vector<T> getkEigenvalues();
+    T getEigenvalue(int i);
+
+    void computekEigenvectors();
+    std::vector<Vector> getkEigenvectors();
+
+    void computeEigenvector(int i);
+    Vector getEigenvector(int i);
+    bool checkEigenvectors();
+    
+    template <typename L>
+    void forAllEigenvalues(L handle) {
+        assureFinished();
+        for (typename std::vector<T>::iterator it = eigen.begin(); it != eigen.end(); ++it) {
+            handle(*it);
+        }
+    }
+    
+    template <typename L>
+    void forAllEigenvectors(L handle) {
+        assureFinished();
+        for (typename std::vector<Vector>::iterator it = basis.begin(); it != basis.end(); ++it) {
+            handle(*it);
+        }
+    }
+  
+    template <typename L>
+    void parallelForAllEigenvectors(L handle) {
+        assureFinished();
+#pragma omp parallel for schedule(guided)
+        for (omp_index i = 0; i < static_cast<omp_index>(basis.size()); ++i) {
+            handle(basis[i]);
+        }
+    }
+    
+   
+  
+protected:
+    Matrix A;
+    int k;
+    int a;
+    int b;
+    int skip;
+    T tolerance;
+    std::vector<T> eigen;
+    std::vector<Vector> basis;
+    
+private:
+    std::vector<T> lanczos_eigen(int steps);
+    std::vector<T> lanczos_no_spurious(SymTriMatrix<T> &tridiag, const T epsilon = 1e-3);
+  
+    /* algorithm to compute the eigenvalues of a symmetric tridiagonal matrix */ 
+    std::vector<T> tqlrat_eigen(const SymTriMatrix<T> &matrix, const T epsilon = 1e-8);
+    /* algorithm to compute the eigenvalues of a symmetric tridiagonal matrix (qr-based)*/ 
+    std::vector<T> qr_eigen(const SymTriMatrix<T> &matrix, const T epsilon = 1e-8);
+    /* inverse power method to compute eigenvector */
+    Vector find_eigen_vector(T eigenvalue);
+    bool find_eigen_vector2 (T eigenvalue);
+  
+
+};
+
+  template<class Matrix, typename T> Lanczos<Matrix, T> :: Lanczos(const Matrix &A) {
+    this->A = A;
+    this->k = 0;
+    this->a = 0;
+    this->skip = 0;
+    this->b = 0;
+  }
+
+
+  template<class Matrix, typename T> Lanczos<Matrix, T> :: Lanczos(const Matrix &A, const int k, int a, int skip, bool double_precision) {
+
+    this->A = A;
+    this->k = k;
+    int n = A.numberOfColumns();
+    if ( (this->k < 1) || (this->k > n) )
+      throw std::runtime_error("Error, k = 0 or > n.");
+   
+    this->a = a;
+    this->skip = skip;
+    if (double_precision)
+      this->b = 64;
+    else
+      this->b = 8;
+    
+    eigen.resize(k, 0.);
+    basis.resize(k);
+    
+  }
+  
+  template<class Matrix, typename T> void Lanczos<Matrix, T> :: setup(const int k, int a, int skip, bool double_precision) {
+
+    if ( A == 0 )
+      throw std::runtime_error("Error, empty matrix A.");
+    this->k = k;
+    int n = A.numberOfColumns();
+    if ( (this->k < 1) || (this->k > n) )
+      throw std::runtime_error("Error, k = 0 or > n.");
+    
+    this->a = a;
+    this->skip = skip;
+    if (double_precision)
+      this->b = 64;
+    else
+      this->b = 8;
+    
+    eigen.resize(k, 0.);
+    basis.resize(k);
+
+    //distanceToTarget.assign(G.upperNodeIdBound(), none);
+    //distanceFromSource.assign(G.upperNodeIdBound(), none);
+
+
+}
+  
+  template<class Matrix, typename T> void Lanczos<Matrix, T> :: run () {
+  
+    std::cout << "*** running CPU Lanczos ***" << std::endl;
+    std::cout << "*** k =  " << k << " a = " << a << " skip = " << skip << " b = " <<  b  << std::endl;
+    
+    for (int steps = a * k + 1; steps < b * k; steps += skip) {
+      eigen = lanczos_eigen (steps);
+    }  
+    std::cout << "*** run status: success ***" << std::endl;
+    hasRun = true;
+}
+
+  template<class Matrix, typename T> inline std::vector<T> Lanczos<Matrix, T> :: getkEigenvalues() {
+    assureFinished();
+    return eigen;
+}
+
+  template<class Matrix, typename T> inline T Lanczos<Matrix, T>::getEigenvalue(int i) {
+    assureFinished();
+    assert(i < eigen.size());
+    return eigen[i];
+}
+
+  template<class Matrix, typename T> inline  void Lanczos<Matrix, T>::computekEigenvectors() {
+    assureFinished();
+    int n = A.numberOfColumns();
+    std::cout << " n = " << n << " basis size = " << basis.size() << std::endl;
+    assert(basis.size() > 0);
+    for (int t = 0; t < basis.size(); ++t) {
+      if (basis[t].getDimension() <= 0) {
+	Vector r = find_eigen_vector(eigen[t]);
+	//find_eigen_vector2(eigen[t]);
+	std::cout << "*** computing eigenvector " << t << " based on eigenvalue " << eigen[t] <<  " : success ***" << std::endl;
+	assert(r.getDimension() == n);
+	basis[t] = Vector(r);
+      }
+    }
+  }
+
+  template<class Matrix, typename T> inline bool Lanczos<Matrix, T>::checkEigenvectors() {
+    assureFinished();
+    int n = A.numberOfColumns();
+    std::cout << " n = " << n << " basis size = " << basis.size() << std::endl;
+    assert(basis.size() > 0);
+    for (int t = 0; t < basis.size(); ++t) {
+      assert(basis[t].getDimension() == n);
+      Vector r1 = A*basis[t];
+      Vector r2 = eigen[t] * basis[t];
+      if ( r1 == r2)
+	std::cout << "*** Eigenvectors are computed successfully! ***" << std::endl;
+      else {
+	std::cout << "*** WARNING!!!! Eigenvector " << t << " is wrong! ***" << std::endl;
+	return false;
+      }
+    }
+    return true;
+  }
 
   
-  template <class Matrix, typename T = double>
-  std::vector<T> lanczos_eigen(const Matrix& matrix, int k, int steps) {
+
+  template<class Matrix, typename T> inline  std::vector<Vector> Lanczos<Matrix, T>::getkEigenvectors() {
+    assureFinished();
+    // if(basis.size() > 0 && basis[0].getDimension() == n) return basis;
+    // else computekEigenvectors();
+    return basis;
+}
+
+  template<class Matrix, typename T> inline  void Lanczos<Matrix, T>::computeEigenvector(int i) {
+    assureFinished();
+    assert(basis.size() > 0);
+    if (basis[i].getDimension() == 0)
+      basis[i] = Vector(find_eigen_vector(eigen[i]));
+    return;
+}
 
 
-  int n = matrix.numberOfColumns();
-  assert(n > 0 && n == matrix.numberOfRows());
+
+  
+  
+  template<class Matrix, typename T> inline Vector Lanczos<Matrix, T>::getEigenvector(int i) {
+    assureFinished();
+    assert(basis.size() > 0);
+    assert(i < basis.size());
+    if (basis[i].getDimension() == 0)
+      basis[i] = Vector(find_eigen_vector(eigen[i]));
+    //return basis[i];
+    return Vector(find_eigen_vector(eigen[i]));
+    
+}
+
+  /* TODO: getBasisCSRMatrix() */
+
+
+
+  
+  
+  template <class Matrix, typename T>
+  std::vector<T> Lanczos<Matrix, T> :: lanczos_eigen(int steps) {
+
+  int n = A.numberOfColumns();
+  assert(n > 0 && n == A.numberOfRows());
   assert(steps > 2 * k);
   Aux::Timer timer;
+  SymTriMatrix<T> tridiag(steps);
+  std::cout << " ** 1st : size of tridiagonal : " << tridiag.size() << std::endl;
   
-  symm_tridiag_matrix<T> tridiag(steps);
   std::vector< Vector > basis;
 
   Vector r(n, 0);
@@ -103,7 +288,7 @@ void symm_tridiag_matrix<T>::remove_backward(int i) {
     }
     r = r * (1 / beta);
     basis.push_back(r);
-    r = matrix * r;
+    r = A * r;
     T alpha  = r.transpose() * basis[t];
     r += -alpha * basis[t];
     if (t > 0) {
@@ -117,67 +302,62 @@ void symm_tridiag_matrix<T>::remove_backward(int i) {
   double timeElapsed = timer.elapsedMicroseconds() / 1e6;
   std::cout << "CPU Lanczos time: " << timeElapsed << " sec" << std::endl;
 
-  return lanczos_no_spurious(tridiag, k);
-  
-  //std::vector<T> v = lanczos_no_spurious(tridiag, k);
-  // Vector f(v);
-  // f.forElements([&](const double u) {
-  // 		  std::cout << "node = " << u   << "\n";
-  // 		});
+  std::cout << " ** 2nd : size of tridiagonal : " << tridiag.size() << std::endl;
+  std::cout << " ** 3rd : size of basis : " << basis.size() << " of size vectors : " << basis[0].length() << std::endl;
+  std::cout << " Calling lanczos_no_spurious "  << std::endl;
 
-  // for ( int i = 0; i< basis.size(); i++ ) {
-  //   std::cout << " eigenvector #" << i <<  "[ ";
-  //   basis[i].forElements([&](const double u) {
-  // 			   std::cout  << u << " ";
-  // 		});
-  //     std::cout << " ]\n";
-  // }
-  // return f;
-  ////return Vector(lanczos_no_spurious(tridiag, k));
+  std::vector<T> result = lanczos_no_spurious(tridiag, k);
+  return result;
+  //return lanczos_no_spurious(tridiag, k);
+  
   
 }
 
-template <typename T>
-std::vector<T> lanczos_no_spurious(symm_tridiag_matrix<T> &tridiag, int k, const T epsilon = 1e-3) {
+  
+  template<class Matrix, typename T>
+  std::vector<T> Lanczos<Matrix,T> :: lanczos_no_spurious(SymTriMatrix<T> &tridiag, const T epsilon) {
     assert(tridiag.size() > 0);
-    Aux::Timer timer;
-    timer.start(); 
-
-    std::vector<T> eigen = tqlrat_eigen(tridiag);
+    // Aux::Timer timer;
+    // timer.start(); 
+    std::cout << " ** 4rth : size of tridiagonal : " << tridiag.size() << std::endl;
+    std::vector<T> e = tqlrat_eigen(tridiag);
+    std::cout << " ** 5th : size of tridiagonal after tqlrat : " << tridiag.size() << std::endl;
     tridiag.remove_forward(0);
-    std::vector<T> test_eigen = tqlrat_eigen(tridiag);
+    std::cout << " ** 6th : size of tridiagonal after remove_forward : " << tridiag.size() << std::endl;
+    std::vector<T> test_e = tqlrat_eigen(tridiag);
+    std::cout << " ** 7th : size of tridiagonal after second tqlrat : " << tridiag.size() << std::endl;
     std::vector<T> result;
 
     int i = 0;
     int j = 0;
-    while (j <= eigen.size()) { // scan through one position beyond the end of the list
-        if (j < eigen.size() && std::abs(eigen[j] - eigen[i]) < epsilon) {
+    while (j <= e.size()) { // scan through one position beyond the end of the list
+        if (j < e.size() && std::abs(e[j] - e[i]) < epsilon) {
             j++;
             continue;
         }
         // simple eigenvalues not in test set are preserved
         // multiple eigenvalues are only preserved once
         if (j - i > 1 || [&] (){
-			   std::vector<double>::iterator first = test_eigen.begin();
-			   std::vector<double>::iterator last = test_eigen.end();
+			   typename std::vector<T>::iterator first = test_e.begin();
+			   typename std::vector<T>::iterator last = test_e.end();
 			   while (first != last) {
-			     if (T(std::abs(*first - eigen[i])) < epsilon) {
+			     if (T(std::abs(*first - e[i])) < epsilon) {
 			       return first;
 			     }
 			     ++first;
 			   }
 			   return last;
 			   
-			 }() == test_eigen.end()) {
-            result.push_back(eigen[i]);
+			 }() == test_e.end()) {
+            result.push_back(e[i]);
         }
         i = j++;
     }
     std::sort(result.rbegin(), result.rend());
-    result.resize(std::min((int)result.size(), k));
+    result.resize(std::min((int)result.size(), this->k));
 
-    timer.stop(); 
-    std::cout << "spurious removal time: " << timer.elapsedMicroseconds() / 1e6 << " sec" << std::endl;
+    // timer.stop(); 
+    // std::cout << "spurious removal time: " << timer.elapsedMicroseconds() / 1e6 << " sec" << std::endl;
     return result;
 }
 
@@ -191,8 +371,8 @@ std::vector<T> lanczos_no_spurious(symm_tridiag_matrix<T> &tridiag, int k, const
  * @tparam  T       matrix element data type
  * @return  list of eigenvalues
  */
-template <typename T>
-std::vector<T> tqlrat_eigen(const symm_tridiag_matrix<T> &matrix, const T epsilon = 1e-8) {
+  template<class Matrix, typename T>
+  std::vector<T> Lanczos<Matrix,T> :: tqlrat_eigen(const SymTriMatrix<T> &matrix, const T epsilon) {
 
   Aux::Timer timer;
   timer.start(); 
@@ -272,12 +452,12 @@ std::vector<T> tqlrat_eigen(const symm_tridiag_matrix<T> &matrix, const T epsilo
  * @tparam  T       matrix element data type
  * @return  list of eigenvalues
  */
-template <typename T>
-std::vector<T> qr_eigen(const symm_tridiag_matrix<T> &matrix, const T epsilon = 1e-8) {
+  template<class Matrix, typename T>
+  std::vector<T> Lanczos<Matrix,T> :: qr_eigen(const SymTriMatrix<T> &matrix, const T epsilon) {
 
   Aux::Timer timer;
   timer.start(); 
-    symm_tridiag_matrix<T> tridiag = matrix;
+    SymTriMatrix<T> tridiag = matrix;
     int n = tridiag.size();
 
     tridiag.resize(n + 1);
@@ -314,6 +494,169 @@ std::vector<T> qr_eigen(const symm_tridiag_matrix<T> &matrix, const T epsilon = 
     std::cout << "QR decomposition time: " << timer.elapsedMicroseconds() / 1e6 << " sec" << std::endl;
     return std::vector<T>(tridiag.alpha_data(), tridiag.alpha_data() + n);
 }
+
+
+
+
+  /*
+ * Routine to compute eigenvectors for real eigenvalues.  Implements 
+ * inverse iteration (power method with a conditioned matrix).
+ *
+ * If the inverse of A is A', then,
+ * 1. 1/µ is an eigenvalue of A'.
+ * 2. Shift the spectrum of A by µ (now the largest eigenvalue of A')
+ * 3. By the power method: A'x_i = x_i+1, --> x_i = Ax_i+1:
+ *	  factor with QR to find x_i+1
+ *
+ */
+
+  template<class Matrix, typename T>
+  Vector Lanczos<Matrix,T> :: find_eigen_vector (T eigenvalue) {
+
+    std::cout << "Finding eigenvector for eigenvalue : " << eigenvalue << std::endl;
+    int n = A.numberOfColumns();
+    std::cout << "n = " << n << std::endl;
+    Vector eigenvector = Vector(n);
+    for (index i = 0; i < n; ++i) {
+      eigenvector[i] = 2.0 * Aux::Random::real() - 1.0;
+    }
+
+    std::cout << "Before iter: Eigenvector : ["<< std::endl;
+    for (int i =0; i< eigenvector.getDimension(); i++) {  
+      std::cout << eigenvector[i]<< " ";
+    }
+    std::cout << "]" << std::endl;
+    std::cout << "Before iter: dimension = " << eigenvector.getDimension() << std::endl;
+    
+    // const double tol // default 1e-5
+    Vector old;
+    count numIterations = 0;
+    const auto lambdaI = Matrix::diagonalMatrix(eigenvalue*Vector(n,1.0));
+    Matrix M = A - lambdaI;
+    
+    do {
+      old = eigenvector;
+      // inverse power iteration instead of power iteration: eigenvector = A*old;
+      ConjugateGradient<Matrix, IdentityPreconditioner<Matrix>> cg(1e-5);
+      // TODO: solving for A!! More performant to sovle for T!!!
+      //cg.setup(A);
+      cg.setup(M);
+      cg.solve(old, eigenvector);
+      //
+      eigenvector /= eigenvector.length();
+      
+        numIterations++;
+    } while ((eigenvector - old).length() > 1e-6 && numIterations < 10000);//1500);
+
+    std::cout << "Eigenvector: ["<< std::endl;
+    for (int i =0; i< eigenvector.getDimension(); i++) {  
+      std::cout << eigenvector[i]<< " ";
+    }
+    std::cout << "]" << std::endl;
+    std::cout << "After iter: dimension = " << eigenvector.getDimension() << std::endl;
+    return eigenvector;
+}
+
+
+
+  template<class Matrix, typename T>
+  bool Lanczos<Matrix,T> :: find_eigen_vector2 (T eigenvalue) {
+
+    double halt = 1e-4;
+    std::cout << "Finding eigenvector for eigenvalue : " << eigenvalue << std::endl;
+    int n = A.numberOfColumns();
+    std::cout << "n = " << n << std::endl;
+
+    int rows = A.numberOfColumns();
+    int iterations = rows;
+
+    const auto lambdaI = Matrix::diagonalMatrix(eigenvalue*Vector(n,1.0));
+    Matrix _A = A - lambdaI;
+    Matrix scratch_A;
+    Vector d;
+    double r_inf;
+    Vector x = Vector(n);
+
+    Vector u = Vector(n);
+    for (index i = 0; i < n; ++i) {
+      u[i] = 2.0 * Aux::Random::real() - 1.0;
+    }
+    std::cout << "PRINT 1 " << eigenvalue << std::endl;
+    
+    //u.set_WiP ();
+
+    // _Ax_n = x_n+1 -> Ax_n+1=x_n, factor with QR
+    while (true) {
+      std::cout << "PRINT 2 " << eigenvalue << std::endl;
+        scratch_A = _A;
+        //scratch_A.copy ();
+	ConjugateGradient<Matrix, IdentityPreconditioner<Matrix>> cg(1e-5);
+	cg.setup(scratch_A);
+	cg.solve(u, x);
+	x /= x.length();
+	std::cout << "PRINT 3 " << eigenvalue << std::endl;
+	u = x;
+	assert(_A.numberOfColumns() == _A.numberOfRows());
+	assert(_A.numberOfColumns() == u.getDimension());
+	d = _A * u;
+
+	r_inf = 1e-5;
+	// r_inf = DBL_MIN;
+	for (int i = 0; i < rows; ++i)
+	  if (r_inf < fabs (d[i]))
+	    r_inf = fabs (d[i]);
+	
+#if 0
+	assert(A.numberOfColumns() == A.numberOfRows());
+	assert(A.numberOfColumns() == u.getDimension());
+        Vector Rayleigh = A * u;
+       	double quotient = u.transpose () * Rayleigh;;
+        double r = ((A * u - eigenvalue * u).length());
+	double R = eigenvalue - quotient;
+
+// 	printf ("Halt conditions %e\t%e\t%e\n", r, halt, A.norm_inf ());
+// 	printf ("Rayleigh %e %f\n", quotient / lambda, quotient);
+#endif
+
+        if (r_inf <= halt)
+	  break;
+
+	--iterations;
+	if (iterations < 0)
+	  {
+	    std::cout << " Didn't converge! " << std::endl;
+	    std::cout << " vector u " << std::endl;
+	    u.forElements([&](const double &value) {
+			    std::cout << value << std::endl;
+			  });
+	    
+	    std::cout << " vector d " << std::endl;
+	    d.forElements([&](const double &value) {
+			    std::cout << value << std::endl;
+			  });
+	    
+	    return false;
+	  }
+	  
+
+    }
+    std::cout << " vector u " << std::endl;
+    u.forElements([&](const double &value) {
+		    std::cout << value << std::endl;
+		  });
+
+    // std::cout << " vector d " << std::endl;
+    // d.forElements([&](const double &value) {
+    // 		    std::cout << value << std::endl;
+    // 		  });
+
+    
+    return true;
+}
+
+  
+
+  
 
   
 } /* namespace NetworKit */

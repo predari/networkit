@@ -14,6 +14,7 @@ namespace NetworKit {
  * @ingroup numerics
  * Simple preconditioner that returns the given vector unchanged.
  */
+  template<class Matrix>
 class IdentityPreconditioner {
 public:
     /** Default constructor */
@@ -22,7 +23,7 @@ public:
      * Constructs an identity preconditioner for the matrix @a A.
      * @param A
      */
-    IdentityPreconditioner(const CSRMatrix &)  {}
+    IdentityPreconditioner(const Matrix &)  {}
     virtual ~IdentityPreconditioner() = default;
 
     /**
