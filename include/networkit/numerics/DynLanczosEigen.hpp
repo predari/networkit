@@ -92,8 +92,8 @@ private:
   
 template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
   Lanczos<Matrix,T>::run();
-  eigenOld = Lanczos<Matrix,T>::eigen;
-  basisOld = Lanczos<Matrix,T>::basis; 
+  eigenOld = Lanczos<Matrix,T>::eigenvalues;
+  basisOld = Lanczos<Matrix,T>::eigenvectors; 
   //eigenOld = Lanczos::getEigenvalues();
   //basisOld = Lanczos::getBasis();
   this->hasRun = true;
