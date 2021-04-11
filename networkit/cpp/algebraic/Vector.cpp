@@ -5,6 +5,7 @@
  *      Author: Michael Wegner (michael.wegner@student.kit.edu)
  */
 
+
 #include <networkit/algebraic/Vector.hpp>
 
 #include <networkit/algebraic/DynamicMatrix.hpp>
@@ -45,8 +46,10 @@ double Vector::mean() const {
 }
 
   
-  
+    // TODO: comparison of doubles is not correct!
+    // epsilon-based comparison instead: fabs(a - b) < EPSILON
 bool Vector::operator==(const Vector &other) const {
+
     if (getDimension() != other.getDimension() || isTransposed() != other.isTransposed()) return false;
 
     for (index i = 0; i < getDimension(); i++) {
