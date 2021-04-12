@@ -10,22 +10,8 @@ namespace NetworKit {
 class LanczosGTest : public testing::Test {};
 
 
-
-//     std::vector<Triplet> triplets = {{0,0,10}, {0,1,-1}, {0,2,2}, {1,0,-1}, {1,1,11}, {1,2,-1}, {1,3,3}, {2,0,2}, {2,1,-1}, {2,2,10}, {2,3,-1}, {3,1,3}, {3,2,-1}, {3,3,8}};
-// //	10  -1   2   0
-// //	-1  11  -1   3
-// //	 2  -1  10  -1
-// //	 0   3  -1   8
-//     // actual eigenvalues and eigenvectors
-//     std::vector<double> eigens = {14.0734777528174, 10.8190609243708 };
-//     const std::vector<std::vector<double>> v = {{-0.215518393568104, -0.494522170829382, 0.187652222913562, 0.820844862216739 },
-// 						{ 0.640429974959434, -0.226704300124538, -0.707852009150845, 0.193391159621156 },
-// 						{-0.623361112531999, -0.491294682496488, -0.500932705771864, -0.345133137530461},
-// 						{ 0.393474513266299, -0.680207701966034, 0.461300987062449, -0.411942579652973 },
-// 						};
-
     
-TEST(LanczosGTest, kEigenvectorsMatrix) {
+TEST(LanczosGTest, kEigenvectorsAdjacency) {
     /* Graph:
             0    3
              \  / \
@@ -36,7 +22,6 @@ TEST(LanczosGTest, kEigenvectorsMatrix) {
     count n = 6;
     Graph G(n, false, false);
     G.indexEdges();
-
 
     G.addEdge(0, 2);
     G.addEdge(1, 2);
@@ -56,17 +41,13 @@ TEST(LanczosGTest, kEigenvectorsMatrix) {
     Lanczos<CSRMatrix,double> s(A, k, a, skip, true);
     s.run();
     e = s.getkEigenvalues();
-    ASSERT_EQ(k, e.size());
-    ASSERT_LE(e.size(), n);
+    ASSERT_LE(e.size(), k);
     
-    // for (int i = 0; i < e.size(); i++) {
-    //   EXPECT_NEAR(eigens[i], e[i], 1e-5);
-    // }
-    std::vector<Vector> evectors(k,Vector(n,0.));
     s.computekEigenvectors();
-    evectors = s.getkEigenvectors();
-    if (!s.checkEigenvectors())
-      WARN(" Eigenvectors are not correct!");
+    std::vector<Vector> evectors = s.getkEigenvectors();
+    ASSERT_EQ(evectors.size(),e.size());
+    ASSERT_TRUE(s.checkEigenvectors());
+    
     
 }
 
@@ -94,8 +75,7 @@ TEST(LanczosGTest,  OneEigenvectorLaplacian) {
     G.addEdge(4, 5);
 
     
-
-    // actual eigenvalues and eigenvectors
+    // eigenpairs computed with matlab
     std::vector<double> eigens = {5.2360679, 3.000, 2.0000, 1.0000, 0.763932022500210, 2.83534217966776e-17 };
     const std::vector<double> v2 = {0.182574185835055, 0.182574185835055, -0.365148371670111, -0.365148371670111, -0.365148371670110, 0.730296743340221 };
     
@@ -122,15 +102,12 @@ TEST(LanczosGTest,  OneEigenvectorLaplacian) {
       EXPECT_NEAR(eigens[i], e[i], 1e-5);
     }
 
-    int j = 1;
-    ASSERT_LE(j, k);
     Vector vec(Vector(n,0.));
-    vec = s.getEigenvector(j);
+    // get first eigenvector
+    vec = s.getEigenvector(1);
     ASSERT_EQ(n, vec.getDimension());
-    for (int i = 0; i< vec.getDimension(); i++) {  
-      INFO(" (comp vs v) : ", vec[i] , ",", v2[i] );
+    for (int i = 0; i< vec.getDimension(); i++)
       EXPECT_NEAR(fabs(vec[i]), fabs(v2[i]), 1e-5);
-    }
     
 }
 
@@ -157,7 +134,7 @@ TEST(LanczosGTest,  kEigenvectorsLaplacian) {
 
     
 
-    // actual eigenvalues and eigenvectors
+    // eigenpairs computed with matlab
     std::vector<double> eigens = {5.2360679, 3.000, 2.0000, 1.0000, 0.763932022500210, 2.83534217966776e-17 };
     const std::vector<std::vector<double>> v = { {-0.195439507584855,-0.195439507584855, 0.827895039618530, -0.316227766016838, -0.316227766016838, 0.195439507584855},
                                                  {0.182574185835055, 0.182574185835055, -0.365148371670111, -0.365148371670111, -0.365148371670110, 0.730296743340221},
@@ -171,21 +148,14 @@ TEST(LanczosGTest,  kEigenvectorsLaplacian) {
 
     const auto L = CSRMatrix::laplacianMatrix(G);
 
-    INFO("L[2,2] = ", L(2,2));
-    INFO("L[0,2] = ", L(0,2));
-    INFO("L[2,0] = ", L(2,0));
-    INFO("L[4,0] = ", L(4,0));
-    INFO("L[0,4] = ", L(0,4));
-    
     int k = 2;
     int a = 2;
     int skip = 16;
     std::vector<double> e(k,0.);
     
-    Lanczos<CSRMatrix,double> s(L, k, a, skip, true);
+    Lanczos<CSRMatrix,double> s(L, k, a, skip, true, 1e-06);
     s.run();
     e = s.getkEigenvalues();
-    ASSERT_EQ(k, e.size());
     ASSERT_LE(e.size(), eigens.size());
     
     for (int i = 0; i < e.size(); i++) {
@@ -196,24 +166,15 @@ TEST(LanczosGTest,  kEigenvectorsLaplacian) {
     }
 
     std::vector<Vector> evectors(k,Vector(n,0.));
-    evectors = s.getkEigenvectors();
-    for (int i =0; i< evectors.size(); i++) {
-        if (!evectors[i].getDimension()) {
-            WARN(" Eigenvectors are not yet computed. Please call computeEigenvectors() first.");
-            break;
-        }
-    } 
+    
     s.computekEigenvectors();
     evectors = s.getkEigenvectors();
-    if (!s.checkEigenvectors())
-      WARN(" Eigenvectors are not correct! :(");
+    ASSERT_EQ(evectors.size(),e.size());
     ASSERT_TRUE(s.checkEigenvectors());
     for (int i =0; i< evectors.size(); i++) {
         ASSERT_EQ(n, evectors[i].getDimension());
-        INFO(" eigenvector : ", i );
         for (int j = 0; j< evectors[i].getDimension(); j++) {
-            INFO(" (comp vs v) : ", evectors[i][j] , ",", v[i][j] );
-            EXPECT_NEAR(fabs(evectors[i][j]), fabs(v[i][j]), 1e-6);
+            EXPECT_NEAR(fabs(evectors[i][j]), fabs(v[i][j]), 1e-5);
       }
     }    
 }
@@ -221,7 +182,7 @@ TEST(LanczosGTest,  kEigenvectorsLaplacian) {
 
 
 
-TEST(LanczosGTest,  kEigenvaluesDynamicLaplacian) {
+TEST(LanczosGTest,  kEigenvectorsDynamicLaplacian) {
     /* Graph:
             0    3
              \  / \
@@ -243,7 +204,7 @@ TEST(LanczosGTest,  kEigenvaluesDynamicLaplacian) {
 
     
 
-    // actual eigenvalues and eigenvectors
+    // eigenpairs computed with matlab
     std::vector<double> eigens = {5.2360679, 3.000, 2.0000, 1.0000, 0.763932022500210, 2.83534217966776e-17 };
     const std::vector<std::vector<double>> v = { {-0.195439507584855,-0.195439507584855, 0.827895039618530, -0.316227766016838, -0.316227766016838, 0.195439507584855},
                                                  {0.182574185835055, 0.182574185835055, -0.365148371670111, -0.365148371670111, -0.365148371670110, 0.730296743340221},
@@ -265,7 +226,6 @@ TEST(LanczosGTest,  kEigenvaluesDynamicLaplacian) {
     Lanczos<DynamicMatrix,double> s(L, k, a, skip, true);
     s.run();
     e = s.getkEigenvalues();
-    ASSERT_EQ(k, e.size());
     ASSERT_LE(e.size(), eigens.size());
     
     for (int i = 0; i < e.size(); i++) {
@@ -276,26 +236,19 @@ TEST(LanczosGTest,  kEigenvaluesDynamicLaplacian) {
     }
 
     std::vector<Vector> evectors(k,Vector(n,0.));
-    evectors = s.getkEigenvectors();
-    for (int i =0; i< evectors.size(); i++) {
-        if (!evectors[i].getDimension()) {
-            WARN(" Eigenvectors are not yet computed. Please call computeEigenvectors() first.");
-            break;
-        }
-    } 
+    
     s.computekEigenvectors();
     evectors = s.getkEigenvectors();
-    if (!s.checkEigenvectors())
-      WARN(" Eigenvectors are not correct! :(");
+    ASSERT_EQ(evectors.size(),e.size());
     ASSERT_TRUE(s.checkEigenvectors());
     for (int i =0; i< evectors.size(); i++) {
         ASSERT_EQ(n, evectors[i].getDimension());
-        INFO(" eigenvector : ", i );
         for (int j = 0; j< evectors[i].getDimension(); j++) {
-            INFO(" (comp vs v) : ", evectors[i][j] , ",", v[i][j] );
-            EXPECT_NEAR(fabs(evectors[i][j]), fabs(v[i][j]), 1e-6);
+            EXPECT_NEAR(fabs(evectors[i][j]), fabs(v[i][j]), 1e-5);
       }
-    }    
+    }
+
+    
 }
 
 
@@ -334,7 +287,6 @@ TEST(LanczosGTest, FullEigenvaluesLaplacian) {
     Lanczos<CSRMatrix,double> s(L, n, a, skip, true);
     s.run();
     e = s.getkEigenvalues();
-    ASSERT_EQ(n, e.size());
     ASSERT_LE(e.size(), eigens.size());
     
     for (int i = 0; i < e.size(); i++) {
