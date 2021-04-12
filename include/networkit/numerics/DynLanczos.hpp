@@ -19,8 +19,8 @@ namespace NetworKit {
 
 
 /**
- * @ingroup centrality
- * Dynamic APSP.
+ * @ingroup numerics
+ * Dynamic Lanczos.
  */
 
 template<class Matrix, typename T>
@@ -29,49 +29,43 @@ class DynLanczos : public Lanczos<Matrix, T>, public DynAlgorithm {
   
 public:
     /**
-     * Creates the object for @a G.
-     *
-     * @param G The graph.
-     */
-    //DynLanczos(const Matrix & A) :
-    //  Lanczos<Matrix,double>(A) {}
-    DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision = true);
+     * Creates the object for matrix @a A. */
+    DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision = true, const T epsilon = 1e-5);
 
     ~DynLanczos() override = default;
 
     /**
-     * Runs static betweenness centrality algorithm on the initial graph.
+     * Runs static lanczos algorithm on the initial graph.
      */
     void run() override;
     
     /**
-     * Updates the betweenness centralities after an edge insertions on the graph.
-     * Notice: it works only with edge insertions.
+     * Updates the eigenvalues/eigenvectors after an edge event on the graph/matrix.
      *
-     * @param e The edge insertions.
+     * @param singleEvent is edge event.
      */
     void update(GraphEvent singleEvent) override {
         std::vector<GraphEvent> events{singleEvent};
         updateBatch(events);
     }
+
     /**
-     * Updates the betweenness centralities after a batch of edge insertions on the graph.
-     * Notice: it works only with edge insertions.
+     * Updates the eigenvalues/eigenvectors after a batch of edge insertions on the graph.
      *
-     * @param batch The batch of edge insertions.
+     * @param batch The batch of edge events.
      */
     
     void updateBatch(const std::vector<GraphEvent>& batch) override;
 
    
 
-    std::vector<T> getAllEigenvalues() ;
+    std::vector<T> getkEigenvalues() override;
     
-    T getEigenvalue(int i) ;
+    T getEigenvalue(int i) override;
     
-    std::vector<Vector> getBasis() ;
+    std::vector<Vector> getkEigenvectors() override ;
   
-    Vector getEigenvector(int i) ;
+    Vector getEigenvector(int i) override;
 
     void loadEigenvectors(std::vector<Vector>);
     
@@ -89,8 +83,8 @@ private:
 };
   
   template<class Matrix, typename T>
-  DynLanczos<Matrix, T>::DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision) :
-      Lanczos<Matrix,T>(A, k, a, skip, double_precision), Delta(Matrix(A.numberOfRows(), A.numberOfColumns())), eigen(k, 0.), basis(k, Vector(A.numberOfRows(), 0.)){ }
+  DynLanczos<Matrix, T>::DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision, const T epsilon) :
+      Lanczos<Matrix,T>(A, k, a, skip, double_precision, epsilon), Delta(Matrix(A.numberOfRows(), A.numberOfColumns())), eigen(k, 0.), basis(k, Vector(A.numberOfRows(), 0.)){ }
    
 
   
@@ -105,8 +99,8 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
     basisOld = Lanczos<Matrix,T>::eigenvectors;
     int n = Lanczos<Matrix,T>::A.numberOfColumns();
     int k = Lanczos<Matrix,T>::k;
-    assert(eigenOld.size() == k);
-    assert(basisOld.size() == k);
+    assert(eigenOld.size() <= k);
+    assert(basisOld.size() <= k);
 
     DEBUG("[DYN] ************************************** ");
     DEBUG("[DYN] ************* run() ****************** ");
@@ -125,96 +119,71 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
     }    
     DEBUG("[DYN] ************************************** ");
 
-
-    
-    //eigenOld = Lanczos::getEigenvalues();
-    //basisOld = Lanczos::getBasis();
     this->hasRun = true;
 }
 
 
-  
-
-  // TODOs:
-  // 1. change double for eigenvalues with template T
-  // 2. update the previous results to be the old ones
-  // 3. allow edge insertions/deletions and edge weight decreases and increases
-  // 4. change private variables to protected
-  // 5. consider parallelism
-  template<class Matrix, typename T> void DynLanczos<Matrix, T> :: updateBatch(const std::vector<GraphEvent>& batch) {
-    INFO("Entering update");
-    // create a delta-update matrix
-    const int n = Lanczos<Matrix,T>::A.numberOfRows();
-    INFO(" size of original matrix n       = ", n);
-    INFO(" nnz of original matrix          = ", Lanczos<Matrix,T>::A.nnz());
-    const int batchSize = batch.size();
-
-    INFO(" size of delta matrix n (before) = ", Delta.numberOfRows());
-    INFO(" nnz of delta matrix (before)    = ", Delta.nnz());
-    assert(!Delta.nnz());
+ 
+    template<class Matrix, typename T> void DynLanczos<Matrix, T> :: updateBatch(const std::vector<GraphEvent>& batch ) {
+        INFO("Entering update");
+        const int n = Lanczos<Matrix,T>::A.numberOfRows();
+        INFO(" size of original matrix n       = ", n);
+        INFO(" nnz of original matrix          = ", Lanczos<Matrix,T>::A.nnz());        
+        INFO(" size of delta matrix n (before) = ", Delta.numberOfRows());
+        INFO(" nnz of delta matrix (before)    = ", Delta.nnz());
+        assert(!Delta.nnz());
    
     
-    for(auto event : batch){
-      node u = event.u;
-      node v = event.v;
-      if (!(event.type==GraphEvent::EDGE_ADDITION || (event.type==GraphEvent::EDGE_WEIGHT_INCREMENT && event.w < 0))) {
-        throw std::runtime_error("event type not allowed. Edge insertions and edge weight decreases only.");
-      }
-            
-      Delta.setValue(u, v, -1.0);
-      Delta.setValue(v, u, -1.0);
-      Delta.setValue(v, v, Delta(v, v) + event.w);
-      Delta.setValue(u, u, Delta(u, u) + event.w);
-    }
+        for(auto event : batch){
+            node u = event.u;
+            node v = event.v;
+            if (!(event.type==GraphEvent::EDGE_ADDITION ||
+                  event.type==GraphEvent::EDGE_WEIGHT_INCREMENT ||
+                  event.type==GraphEvent::EDGE_REMOVAL)) {
+                throw std::runtime_error("event type not allowed. Edge insertions, deletions and edge weight increases only.");
+            }
+            // create the Delta matrix based on the batch events
+            Delta.setValue(u, v, -1.0);
+            Delta.setValue(v, u, -1.0);
+            Delta.setValue(v, v, Delta(v, v) + event.w);
+            Delta.setValue(u, u, Delta(u, u) + event.w);
+        }
 
-    INFO(" size of delta matrix n (after)  = ", Delta.numberOfRows());
-    INFO(" nnz of delta matrix (after)     = ", Delta.nnz());
-    
-    //for(int i = 0; i < triplets.size(); i++)
-    //INFO(" edge ", triplets[i].row , ",", triplets[i].column);
-    //INFO(" Delta.rows() = ", Delta.numberOfRows() , " Delta.cols() = ", Delta.numberOfColumns());
-    //INFO(" Delta.nnz() = ", Delta.nnz());
+        INFO(" size of delta matrix n (after)  = ", Delta.numberOfRows());
+        INFO(" nnz of delta matrix (after)     = ", Delta.nnz());
 
-
-    // INFO("D[1,3] = ", Delta(1,3));
-    // INFO("D[3,3] = ", Delta(3,3));
-    // INFO("D[4,4] = ", Delta(4,4));
-    // INFO("D[1,1] = ", Delta(1,1));
-    // INFO("D[1,2] = ", Delta(1,2));
-
-    
-    for(int j = 0; j < Lanczos<Matrix,T>::k; j++) {
-      Vector deltaEigenvector(n,0.);
-      Vector v(n,0.);
-      for(int i = 0; i < Lanczos<Matrix,T>::k; i++) {
-          if (i == j) continue;
-      
-          Vector b = basisOld[j];
-          assert(b.getDimension() == n);
+        // the main update proceduce based on Trip algo from Fast 'Eigen-Functions Tracking on Dynamic Graphs' by Chen and Tong
+        for(int j = 0; j < Lanczos<Matrix,T>::k; j++) {
+            Vector deltaEigenvector(n,0.);
+            Vector v(n,0.);
+            for(int i = 0; i < Lanczos<Matrix,T>::k; i++) {
+                if (i == j) continue;
+                
+                Vector b = basisOld[j];
+                assert(b.getDimension() == n);
+                
+                v = Delta * basisOld[j];
+                double alpha = basisOld[i].transpose() * v;
+                alpha /=  (eigenOld[j] - eigenOld[i]);
+                deltaEigenvector = deltaEigenvector + alpha * basisOld[i];
+                for (int i= 0; i < n; i++)
+                    INFO(deltaEigenvector[i]);
           
-          v = Delta * basisOld[j];
-          double alpha = basisOld[i].transpose() * v;
-          alpha /=  (eigenOld[j] - eigenOld[i]);
-          INFO(" delta eigenvector");
-          deltaEigenvector = deltaEigenvector + alpha * basisOld[i];
-          for (int i= 0; i < n; i++)
-              INFO(deltaEigenvector[i]);
-          
-      }
-      double deltaEigenvalue = basisOld[j].transpose() * v;
-      eigen[j] = eigenOld[j] + deltaEigenvalue; 
-      basis[j] = basisOld[j] + deltaEigenvector;
-    }
+            }
+            double deltaEigenvalue = basisOld[j].transpose() * v;
+            eigen[j] = eigenOld[j] + deltaEigenvalue; 
+            basis[j] = basisOld[j] + deltaEigenvector;
+        }
+        
 
-
-    DEBUG("[DYN] [OLD] ******************************** ");
-    DEBUG("[DYN] [OLD] ********* update() ************* ");
-    std::cout << "[ ";
-    for (int i = 0; i < eigenOld.size(); i++)
-        std::cout << eigenOld[i] << " ";
-    std::cout << "]\n";
-    DEBUG("[DYN] [OLD] ******************************** ");
-    for (int i =0; i< basisOld.size(); i++) {
+        DEBUG("[DYN] [OLD] ******************************** ");
+        DEBUG("[DYN] [OLD] ********* update() ************* ");
+        std::cout << "[ ";
+        for (int i = 0; i < eigenOld.size(); i++)
+            std::cout << eigenOld[i] << " ";
+        std::cout << "]\n";
+        DEBUG("[DYN] [OLD] ******************************** ");
+        for (int i =0; i< basisOld.size(); i++) {
         assert(basisOld[i].getDimension() == n);
         std::cout << " [DYN] [OLD] *** Eigenvector # " <<  i << "[ ";
         for (int j = 0; j < n; j++) {
@@ -222,58 +191,60 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
         }
         std::cout << "]\n";
     }    
-    DEBUG("[DYN] ************************************** ");
+        DEBUG("[DYN] ************************************** ");
 
-    // TODO: change as to receive Delta as input argument in update
-    // update for next run
-    // clear Delta
-    eigenOld = eigen;
-    basisOld = basis;
-    Matrix M = Matrix(Delta.numberOfRows());
-    Lanczos<Matrix,T>::setup(Lanczos<Matrix,T>::A + Delta);
-    Delta = M;
+        // update variables for next run of updateBatch
+        eigenOld = eigen;
+        basisOld = basis;
+        Lanczos<Matrix,T>::setup(Lanczos<Matrix,T>::A + Delta);
+        // clear matrix
+        Delta = Matrix(Delta.numberOfRows());
 
 
-    DEBUG("[DYN] [NEW] ******************************** ");
-    DEBUG("[DYN] [NEW] ********* update() ************* ");
-    std::cout << "[ ";
-    for (int i = 0; i < eigen.size(); i++)
-        std::cout << eigen[i] << " ";
-    std::cout << "]\n";
-    DEBUG("[DYN] [NEW] ******************************** ");
-    for (int i =0; i< basis.size(); i++) {
-        assert(basis[i].getDimension() == n);
-        std::cout << " [DYN] [NEW]  *** Eigenvector # " <<  i << "[ ";
-        for (int j = 0; j < n; j++) {
-            std::cout << basis[i][j] << " ";
-        }
+        DEBUG("[DYN] [NEW] ******************************** ");
+        DEBUG("[DYN] [NEW] ********* update() ************* ");
+        std::cout << "[ ";
+        for (int i = 0; i < eigen.size(); i++)
+            std::cout << eigen[i] << " ";
         std::cout << "]\n";
-    }    
-    DEBUG("[DYN] ************************************** ");
-
-
+        DEBUG("[DYN] [NEW] ******************************** ");
+        for (int i =0; i< basis.size(); i++) {
+            assert(basis[i].getDimension() == n);
+            std::cout << " [DYN] [NEW]  *** Eigenvector # " <<  i << "[ ";
+            for (int j = 0; j < n; j++) {
+                std::cout << basis[i][j] << " ";
+            }
+            std::cout << "]\n";
+        }    
+        DEBUG("[DYN] ************************************** ");
     
   }
 
 
-  template<class Matrix, typename T> inline std::vector<T> DynLanczos<Matrix, T> :: getAllEigenvalues() {
-    this->assureFinished();
-    return eigen;
+  template<class Matrix, typename T> inline std::vector<T> DynLanczos<Matrix, T> :: getkEigenvalues() {
+      this->assureFinished();
+      if(eigen.size() < Lanczos<Matrix,T>::k)
+          WARN("Lanczos algorithm returns less than k eigenvalues due to spurious behaviour.");
+      return eigen;
 }
 
   template<class Matrix, typename T> inline T DynLanczos<Matrix, T>::getEigenvalue(int i) {
     this->assureFinished();
+    assert(i < eigen.size());
     return eigen[i];
 }
 
-  template<class Matrix, typename T> inline  std::vector<Vector> DynLanczos<Matrix, T>::getBasis() {
+  template<class Matrix, typename T> inline  std::vector<Vector> DynLanczos<Matrix, T>::getkEigenvectors() {
     this->assureFinished();
+    int k = Lanczos<Matrix,T>::k;
+    assert(basis.size() <= k);
     return basis;
 }
 
     
   template<class Matrix, typename T> inline Vector DynLanczos<Matrix, T>::getEigenvector(int i) {
     this->assureFinished();
+    assert(i < basis.size());
     return basis[i];
 }
 

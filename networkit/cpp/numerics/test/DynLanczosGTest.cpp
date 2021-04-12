@@ -3,7 +3,6 @@
 #include <networkit/algebraic/CSRMatrix.hpp>
 #include <networkit/algebraic/Vector.hpp>
 #include <networkit/numerics/DynLanczos.hpp>
-//#include <networkit/numerics/Lanczos.hpp>
 #include <networkit/auxiliary/Random.hpp>
 //#include <networkit/algebraic/AlgebraicGlobals.hpp>
 #include <networkit/graph/GraphTools.hpp>
@@ -85,6 +84,101 @@ TEST(DynLanczosGTest, runDynVsStatic) {
 }
 
 
+TEST(DynLanczosGTest, DynamicVsStaticOnStaticGraph) {
+
+    /* Graph:
+            0    3
+             \  / \
+              2    5
+             /  \ /
+            1    4
+     */
+    count n = 6;
+    Graph G(n, false, false);
+    G.indexEdges();
+
+    G.addEdge(0, 2);
+    G.addEdge(1, 2);
+    G.addEdge(2, 3);
+    G.addEdge(2, 4);
+    G.addEdge(3, 5);
+    G.addEdge(4, 5);
+
+    // eigenvalues and eigenvectors computed with matlab
+    std::vector<double> eigens = {5.2360679, 3.000, 2.0000, 1.0000, 0.763932022500210, 2.83534217966776e-17 };
+    const std::vector<std::vector<double>> v = { {-0.195439507584855,-0.195439507584855, 0.827895039618530, -0.316227766016838, -0.316227766016838, 0.195439507584855},
+                                                 {0.182574185835055, 0.182574185835055, -0.365148371670111, -0.365148371670111, -0.365148371670110, 0.730296743340221},
+                                                 {-4.82186041151648e-16, -4.82186041151648e-16,3.33066907387547e-16, -0.707106781186547, 0.707106781186547, -8.32667268468868e-16},
+                                                 { 0.707106781186548, -0.707106781186548, 6.16297582203916e-32, 7.85046229341889e-17, -7.85046229341889e-17, 0},
+                                                 { 0.511667273601693, 0.511667273601693, 0.120788258431983, -0.316227766016838, -0.316227766016838, -0.511667273601693},
+                                                 { 0.408248290463863, 0.408248290463863, 0.408248290463863, 0.408248290463863, 0.408248290463863, 0.408248290463863 }};
+
+
+    
+
+    auto L = CSRMatrix::laplacianMatrix(G);
+
+    int k = 2;
+    int a = 2;
+    int skip = 16;
+    std::vector<double> e(k,0.);
+    
+    // run static and compare with matlab 
+    Lanczos<CSRMatrix, double> l(L, k, a, skip, true, 1e-05);
+    l.run();
+    e = l.getkEigenvalues();
+    ASSERT_LE(e.size(), k);
+    for (int i = 0; i < e.size(); i++)
+        INFO(e[i]);
+    for (int i = 0; i < e.size(); i++) {
+        EXPECT_NEAR(eigens[i], e[i], 1e-5);
+    }
+
+    std::vector<Vector> evectors(k,Vector(n,0.));
+    l.computekEigenvectors();
+    evectors = l.getkEigenvectors();
+    ASSERT_TRUE(l.checkEigenvectors());
+    for (int i = 0; i < evectors.size(); i++) {
+        ASSERT_EQ(n, evectors[i].getDimension());
+        for (int j = 0; j< evectors[i].getDimension(); j++) {
+            EXPECT_NEAR(fabs(evectors[i][j]), fabs(v[i][j]), 1e-5);
+        }
+    }    
+    
+    // run dynamic and compare with matlab (no update)
+    DynLanczos<CSRMatrix,double> dyn_l(L, k, a, skip, true, 1e-05);
+    dyn_l.run();
+    std::vector<double> dyn_e = dyn_l.getkEigenvalues();
+    ASSERT_LE(dyn_e.size(), k);
+    
+    double err1= 0;
+    for(count i=0; i<k; i++) {
+        double x = dyn_e[i]-e[i];
+        if (x > err1)
+            err1 = x;
+    }
+    if (err1)
+        WARN(" Static and dynamic should produce the same result on a static graph.");
+    
+    for (int i = 0; i < e.size(); i++) {
+        EXPECT_NEAR(eigens[i], dyn_e[i], 1e-5);
+        EXPECT_NEAR(e[i], dyn_e[i], 1e-5);
+    }
+
+    std::vector<Vector> dyn_evectors(k,Vector(n,0.));
+    dyn_l.computekEigenvectors();
+    dyn_evectors = dyn_l.getkEigenvectors();
+    ASSERT_TRUE(dyn_l.checkEigenvectors());
+    for (int i =0; i< dyn_evectors.size(); i++) {
+        ASSERT_EQ(n, dyn_evectors[i].getDimension());
+        for (int j = 0; j< dyn_evectors[i].getDimension(); j++) {
+            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(v[i][j]), 1e-5);
+            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(evectors[i][j]), 1e-5);
+        }
+    }    
+}
+
+    
 
 
 TEST(DynLanczosGTest, runDynVsStaticLaplacian) {
@@ -320,8 +414,8 @@ TEST(DynLanczosGTest, runDynVsStaticLaplacian) {
     // for dynamic algo the update performed on eigenvalues and eigenvectors
 
     dyn_l.updateBatch(batch);
-    dyn_e = dyn_l.getAllEigenvalues();
-    dyn_evectors = dyn_l.getBasis();
+    dyn_e = dyn_l.getkEigenvalues();
+    dyn_evectors = dyn_l.getkEigenvectors();
 
     //dyn_e = dyn_l.getkEigenvalues();
     //dyn_evectors = dyn_l.getkEigenvectors();
@@ -431,8 +525,8 @@ TEST(DynLanczosGTest, runDynVsStaticLaplacian) {
     // for dynamic algo the update performed on eigenvalues and eigenvectors
 
     dyn_l.updateBatch(batch2);
-    dyn_e = dyn_l.getAllEigenvalues();
-    dyn_evectors = dyn_l.getBasis();
+    dyn_e = dyn_l.getkEigenvalues();
+    dyn_evectors = dyn_l.getkEigenvectors();
 
     //dyn_e = dyn_l.getkEigenvalues();
     //dyn_evectors = dyn_l.getkEigenvectors();
