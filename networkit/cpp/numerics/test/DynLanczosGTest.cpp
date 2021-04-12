@@ -148,7 +148,7 @@ TEST(DynLanczosGTest, DynamicVsStaticOnStaticGraph) {
     // run dynamic and compare with matlab (no update)
     DynLanczos<CSRMatrix,double> dyn_l(L, k, a, skip, true, 1e-05);
     dyn_l.run();
-    std::vector<double> dyn_e = dyn_l.getkEigenvalues();
+    std::vector<double> dyn_e = dyn_l.getUpdatedEigenvalues();
     ASSERT_LE(dyn_e.size(), k);
     
     double err1= 0;
@@ -167,7 +167,7 @@ TEST(DynLanczosGTest, DynamicVsStaticOnStaticGraph) {
 
     std::vector<Vector> dyn_evectors(k,Vector(n,0.));
     dyn_l.computekEigenvectors();
-    dyn_evectors = dyn_l.getkEigenvectors();
+    dyn_evectors = dyn_l.getUpdatedEigenvectors();
     ASSERT_TRUE(dyn_l.checkEigenvectors());
     for (int i =0; i< dyn_evectors.size(); i++) {
         ASSERT_EQ(n, dyn_evectors[i].getDimension());
@@ -255,7 +255,7 @@ TEST(DynLanczosGTest, runDynVsStaticLaplacian) {
     //DEBUG(" Dynamic algorithm on L: ");
     DynLanczos<CSRMatrix,double> dyn_l(L, k, a, skip);
     dyn_l.run();
-    std::vector<double> dyn_e = dyn_l.getkEigenvalues();
+    std::vector<double> dyn_e = dyn_l.getUpdatedEigenvalues();
     ASSERT_EQ(k, dyn_e.size());
     
     double err1= 0;
@@ -278,7 +278,7 @@ TEST(DynLanczosGTest, runDynVsStaticLaplacian) {
 
     std::vector<Vector> dyn_evectors(k,Vector(n,0.));
     dyn_l.computekEigenvectors();
-    dyn_evectors = dyn_l.getkEigenvectors();
+    dyn_evectors = dyn_l.getUpdatedEigenvectors();
     ASSERT_TRUE(dyn_l.checkEigenvectors());
     for (int i =0; i< dyn_evectors.size(); i++) {
         ASSERT_EQ(n, dyn_evectors[i].getDimension());
@@ -300,7 +300,7 @@ TEST(DynLanczosGTest, runDynVsStaticLaplacian) {
     //         L.setValue(v1, v2, -1.0);
     //         L.setValue(v2, v1, -1.0);
     //         L.setValue(v2, v2, L(v2,v2) + 1);
-    //         L.setValue(v1, v1, L(v1,v1) + 1);
+    //         L.setValue(v1, gv1, L(v1,v1) + 1);
     //         batch.push_back(GraphEvent(GraphEvent::EDGE_ADDITION, v1, v2, 1.0));
     //         i++;
     //     }
@@ -414,8 +414,8 @@ TEST(DynLanczosGTest, runDynVsStaticLaplacian) {
     // for dynamic algo the update performed on eigenvalues and eigenvectors
 
     dyn_l.updateBatch(batch);
-    dyn_e = dyn_l.getkEigenvalues();
-    dyn_evectors = dyn_l.getkEigenvectors();
+    dyn_e = dyn_l.getUpdatedEigenvalues();
+    dyn_evectors = dyn_l.getUpdatedEigenvectors();
 
     //dyn_e = dyn_l.getkEigenvalues();
     //dyn_evectors = dyn_l.getkEigenvectors();
@@ -525,8 +525,8 @@ TEST(DynLanczosGTest, runDynVsStaticLaplacian) {
     // for dynamic algo the update performed on eigenvalues and eigenvectors
 
     dyn_l.updateBatch(batch2);
-    dyn_e = dyn_l.getkEigenvalues();
-    dyn_evectors = dyn_l.getkEigenvectors();
+    dyn_e = dyn_l.getUpdatedEigenvalues();
+    dyn_evectors = dyn_l.getUpdatedEigenvectors();
 
     //dyn_e = dyn_l.getkEigenvalues();
     //dyn_evectors = dyn_l.getkEigenvectors();

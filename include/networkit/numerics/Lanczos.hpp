@@ -49,14 +49,14 @@ public:
     
     void run() override;
 
-    virtual std::vector<T> getkEigenvalues();
-    virtual T getEigenvalue(int i);
+     std::vector<T> getkEigenvalues();
+     T getEigenvalue(int i);
 
     void computekEigenvectors();
-    virtual std::vector<Vector> getkEigenvectors();
+    std::vector<Vector> getkEigenvectors();
 
     void computeEigenvector(int i);
-    virtual Vector getEigenvector(int i);
+    Vector getEigenvector(int i);
     bool checkEigenvectors();
     
     template <typename L>

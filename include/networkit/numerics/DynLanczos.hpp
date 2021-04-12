@@ -59,13 +59,13 @@ public:
 
    
 
-    std::vector<T> getkEigenvalues() override;
+    std::vector<T> getUpdatedEigenvalues();
     
-    T getEigenvalue(int i) override;
+    T getUpdatedEigenvalue(int i);
     
-    std::vector<Vector> getkEigenvectors() override ;
+    std::vector<Vector> getUpdatedEigenvectors();
   
-    Vector getEigenvector(int i) override;
+    Vector getUpdatedEigenvector(int i);
 
     void loadEigenvectors(std::vector<Vector>);
     
@@ -221,20 +221,21 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
   }
 
 
-  template<class Matrix, typename T> inline std::vector<T> DynLanczos<Matrix, T> :: getkEigenvalues() {
+    
+  template<class Matrix, typename T> inline std::vector<T> DynLanczos<Matrix, T> :: getUpdatedEigenvalues() {
       this->assureFinished();
       if(eigen.size() < Lanczos<Matrix,T>::k)
           WARN("Lanczos algorithm returns less than k eigenvalues due to spurious behaviour.");
       return eigen;
 }
 
-  template<class Matrix, typename T> inline T DynLanczos<Matrix, T>::getEigenvalue(int i) {
+  template<class Matrix, typename T> inline T DynLanczos<Matrix, T>::getUpdatedEigenvalue(int i) {
     this->assureFinished();
     assert(i < eigen.size());
     return eigen[i];
 }
 
-  template<class Matrix, typename T> inline  std::vector<Vector> DynLanczos<Matrix, T>::getkEigenvectors() {
+  template<class Matrix, typename T> inline  std::vector<Vector> DynLanczos<Matrix, T>::getUpdatedEigenvectors() {
     this->assureFinished();
     int k = Lanczos<Matrix,T>::k;
     assert(basis.size() <= k);
@@ -242,7 +243,7 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
 }
 
     
-  template<class Matrix, typename T> inline Vector DynLanczos<Matrix, T>::getEigenvector(int i) {
+  template<class Matrix, typename T> inline Vector DynLanczos<Matrix, T>::getUpdatedEigenvector(int i) {
     this->assureFinished();
     assert(i < basis.size());
     return basis[i];
