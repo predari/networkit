@@ -105,22 +105,26 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
     assert(eigenOld.size() <= k);
     assert(basisOld.size() <= k);
 
-    DEBUG("[DYN] ************************************** ");
-    DEBUG("[DYN] ************* run() ****************** ");
+
+    DEBUG("************* after static run: ****************** ");
     std::cout << "[ ";
     for (int i = 0; i < eigenOld.size(); i++)
         std::cout << eigenOld[i] << " ";
     std::cout << "]\n";
-    DEBUG("[DYN] ************************************** ");
     for (int i =0; i< basisOld.size(); i++) {
         assert(basisOld[i].getDimension() == n);
-        std::cout << " [DYN] ******** Eigenvector # " <<  i << "[ ";
+        std::cout << "  ******** Eigenvector # " <<  i << "[ ";
         for (int j = 0; j < n; j++) {
             std::cout << basisOld[i][j] << " ";
         }
         std::cout << "]\n";
-    }    
-    DEBUG("[DYN] ************************************** ");
+    }
+
+    std::cout << " eigen [ ";
+    for (int i = 0; i < eigen.size(); i++)
+        std::cout << eigen[i] << " ";
+    std::cout << "]\n";
+
 
     this->hasRun = true;
 }
@@ -132,12 +136,7 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
         INFO("Entering update");
         
         const int n = Lanczos<Matrix,T>::A.numberOfRows();
-        INFO(" size of original matrix n       = ", n);
-        INFO(" nnz of original matrix          = ", Lanczos<Matrix,T>::A.nnz());
-        
-        INFO(" size of delta matrix n (before) = ", Delta.numberOfRows());
-        INFO(" nnz of delta matrix (before)    = ", Delta.nnz());
-        assert(!Delta.nnz());
+        assert(!Delta.nnz() && (Delta.numberOfRows() == n));
         
     
         for(auto event : batch){
@@ -155,22 +154,41 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
             Delta.setValue(u, u, Delta(u, u) + event.w);
         }
         
-        INFO(" size of delta matrix n (after)  = ", Delta.numberOfRows());
-        INFO(" nnz of delta matrix (after)     = ", Delta.nnz());
+
+    std::cout << " old[ ";
+    for (int i = 0; i < eigenOld.size(); i++)
+        std::cout << eigenOld[i] << " ";
+    std::cout << "]\n";
+    DEBUG(" ******************************** ");
+    for (int i =0; i< basisOld.size(); i++) {
+        assert(basisOld[i].getDimension() == n);
+        std::cout << " *** Old Eigenvector # " <<  i << "[ ";
+        for (int j = 0; j < n; j++) {
+            std::cout << basisOld[i][j] << " ";
+        }
+        std::cout << "]\n";
+    }    
+
         
     
     for(int j = 0; j < Lanczos<Matrix,T>::k; j++) {
       Vector deltaEigenvector(n,0.);
       Vector v(n,0.);
+      Vector b = basisOld[j];
+      assert(b.getDimension() == n);
+      for (int k = 0; k < n; k++) {
+          std::cout << b[k] << " ";
+      }
+         std::cout << "\n";
       for(int i = 0; i < Lanczos<Matrix,T>::k; i++) {
           if (i == j) continue;
           
-          Vector b = basisOld[j];
-          assert(b.getDimension() == n);
           
-          v = Delta * basisOld[j];
+          
+          v = Delta * b;
           double alpha = basisOld[i].transpose() * v;
           alpha /=  (eigenOld[j] - eigenOld[i]);
+          INFO("eigenOld[j] - eigenOld[i] = ", eigenOld[j] - eigenOld[i]);
           INFO(" delta eigenvector");
           deltaEigenvector = deltaEigenvector + alpha * basisOld[i];
           for (int i= 0; i < n; i++)
@@ -178,27 +196,28 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
           
       }
       double deltaEigenvalue = basisOld[j].transpose() * v;
+      INFO("deltaEigenvalue = ", deltaEigenvalue);
       eigen[j] = eigenOld[j] + deltaEigenvalue; 
       basis[j] = basisOld[j] + deltaEigenvector;
     }
 
 
-    DEBUG("[DYN] [OLD] ******************************** ");
-    DEBUG("[DYN] [OLD] ********* update() ************* ");
-    std::cout << "[ ";
-    for (int i = 0; i < eigenOld.size(); i++)
-        std::cout << eigenOld[i] << " ";
-    std::cout << "]\n";
-    DEBUG("[DYN] [OLD] ******************************** ");
-    for (int i =0; i< basisOld.size(); i++) {
-        assert(basisOld[i].getDimension() == n);
-        std::cout << " [DYN] [OLD] *** Eigenvector # " <<  i << "[ ";
-        for (int j = 0; j < n; j++) {
-            std::cout << basisOld[i][j] << " ";
-        }
-        std::cout << "]\n";
-    }    
-    DEBUG("[DYN] ************************************** ");
+    // DEBUG("******************************** ");
+    // DEBUG("********* update() ************* ");
+    // std::cout << " old[ ";
+    // for (int i = 0; i < eigenOld.size(); i++)
+    //     std::cout << eigenOld[i] << " ";
+    // std::cout << "]\n";
+    // DEBUG(" ******************************** ");
+    // for (int i =0; i< basisOld.size(); i++) {
+    //     assert(basisOld[i].getDimension() == n);
+    //     std::cout << " *** Old Eigenvector # " <<  i << "[ ";
+    //     for (int j = 0; j < n; j++) {
+    //         std::cout << basisOld[i][j] << " ";
+    //     }
+    //     std::cout << "]\n";
+    // }    
+    // DEBUG("[DYN] ************************************** ");
 
     // update for next run
     eigenOld = eigen;
@@ -207,22 +226,22 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
     Delta = Matrix(Delta.numberOfRows());
 
 
-    DEBUG("[DYN] [NEW] ******************************** ");
-    DEBUG("[DYN] [NEW] ********* update() ************* ");
-    std::cout << "[ ";
+
+    DEBUG(" ********* after update() ************* ");
+    std::cout << "new eigen [ ";
     for (int i = 0; i < eigen.size(); i++)
         std::cout << eigen[i] << " ";
     std::cout << "]\n";
-    DEBUG("[DYN] [NEW] ******************************** ");
+    DEBUG(" ******************************** ");
     for (int i =0; i< basis.size(); i++) {
         assert(basis[i].getDimension() == n);
-        std::cout << " [DYN] [NEW]  *** Eigenvector # " <<  i << "[ ";
+        std::cout << "  *** New Eigenvector # " <<  i << "[ ";
         for (int j = 0; j < n; j++) {
             std::cout << basis[i][j] << " ";
         }
         std::cout << "]\n";
     }    
-    DEBUG("[DYN] ************************************** ");
+
 
 
     
