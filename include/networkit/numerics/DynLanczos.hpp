@@ -33,7 +33,7 @@ public:
      *
      * @param A The matrix.
      */
-    DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision = true);
+    DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision = true, const T epsilon = 1e-05);
 
     ~DynLanczos() override = default;
 
@@ -86,8 +86,8 @@ private:
 };
   
   template<class Matrix, typename T>
-  DynLanczos<Matrix, T>::DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision) :
-      Lanczos<Matrix,T>(A, k, a, skip, double_precision), Delta(Matrix(A.numberOfRows(), A.numberOfColumns())), eigen(k, 0.), basis(k, Vector(A.numberOfRows(), 0.)){ }
+  DynLanczos<Matrix, T>::DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision, const T epsilon) :
+      Lanczos<Matrix,T>(A, k, a, skip, double_precision, epsilon), Delta(Matrix(A.numberOfRows(), A.numberOfColumns())), eigen(k, 0.), basis(k, Vector(A.numberOfRows(), 0.)){ }
    
 
   
@@ -102,8 +102,8 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
     basisOld = Lanczos<Matrix,T>::eigenvectors;
     int n = Lanczos<Matrix,T>::A.numberOfColumns();
     int k = Lanczos<Matrix,T>::k;
-    assert(eigenOld.size() == k);
-    assert(basisOld.size() == k);
+    assert(eigenOld.size() <= k);
+    assert(basisOld.size() <= k);
 
     DEBUG("[DYN] ************************************** ");
     DEBUG("[DYN] ************* run() ****************** ");
@@ -122,70 +122,49 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
     }    
     DEBUG("[DYN] ************************************** ");
 
-
-    
-    //eigenOld = Lanczos::getEigenvalues();
-    //basisOld = Lanczos::getBasis();
     this->hasRun = true;
 }
 
 
-  
+ 
+    template<class Matrix, typename T> void DynLanczos<Matrix, T> :: updateBatch(const std::vector<GraphEvent>& batch) {
 
-  // TODOs:
-  // 1. change double for eigenvalues with template T
-  // 2. update the previous results to be the old ones
-  // 3. allow edge insertions/deletions and edge weight decreases and increases
-  // 4. change private variables to protected
-  // 5. consider parallelism
-  template<class Matrix, typename T> void DynLanczos<Matrix, T> :: updateBatch(const std::vector<GraphEvent>& batch) {
-    INFO("Entering update");
-    // create a delta-update matrix
-    const int n = Lanczos<Matrix,T>::A.numberOfRows();
-    INFO(" size of original matrix n       = ", n);
-    INFO(" nnz of original matrix          = ", Lanczos<Matrix,T>::A.nnz());
-    const int batchSize = batch.size();
-
-    INFO(" size of delta matrix n (before) = ", Delta.numberOfRows());
-    INFO(" nnz of delta matrix (before)    = ", Delta.nnz());
-    assert(!Delta.nnz());
-   
+        INFO("Entering update");
+        
+        const int n = Lanczos<Matrix,T>::A.numberOfRows();
+        INFO(" size of original matrix n       = ", n);
+        INFO(" nnz of original matrix          = ", Lanczos<Matrix,T>::A.nnz());
+        
+        INFO(" size of delta matrix n (before) = ", Delta.numberOfRows());
+        INFO(" nnz of delta matrix (before)    = ", Delta.nnz());
+        assert(!Delta.nnz());
+        
     
-    for(auto event : batch){
-      node u = event.u;
-      node v = event.v;
-      if (!(event.type==GraphEvent::EDGE_ADDITION || (event.type==GraphEvent::EDGE_WEIGHT_INCREMENT && event.w < 0))) {
-        throw std::runtime_error("event type not allowed. Edge insertions and edge weight decreases only.");
-      }
+        for(auto event : batch){
+            node u = event.u;
+            node v = event.v;
+            if (!(event.type==GraphEvent::EDGE_ADDITION ||
+                  event.type==GraphEvent::EDGE_WEIGHT_INCREMENT ||
+                  event.type==GraphEvent::EDGE_REMOVAL)) {
+                throw std::runtime_error("event type not allowed. Edge insertions and edge weight decreases only.");
+            }
             
-      Delta.setValue(u, v, -1.0);
-      Delta.setValue(v, u, -1.0);
-      Delta.setValue(v, v, Delta(v, v) + event.w);
-      Delta.setValue(u, u, Delta(u, u) + event.w);
-    }
-
-    INFO(" size of delta matrix n (after)  = ", Delta.numberOfRows());
-    INFO(" nnz of delta matrix (after)     = ", Delta.nnz());
-    
-    //for(int i = 0; i < triplets.size(); i++)
-    //INFO(" edge ", triplets[i].row , ",", triplets[i].column);
-    //INFO(" Delta.rows() = ", Delta.numberOfRows() , " Delta.cols() = ", Delta.numberOfColumns());
-    //INFO(" Delta.nnz() = ", Delta.nnz());
-
-
-    // INFO("D[1,3] = ", Delta(1,3));
-    // INFO("D[3,3] = ", Delta(3,3));
-    // INFO("D[4,4] = ", Delta(4,4));
-    // INFO("D[1,1] = ", Delta(1,1));
-    // INFO("D[1,2] = ", Delta(1,2));
-
+            Delta.setValue(u, v, -1.0);
+            Delta.setValue(v, u, -1.0);
+            Delta.setValue(v, v, Delta(v, v) + event.w);
+            Delta.setValue(u, u, Delta(u, u) + event.w);
+        }
+        
+        INFO(" size of delta matrix n (after)  = ", Delta.numberOfRows());
+        INFO(" nnz of delta matrix (after)     = ", Delta.nnz());
+        
     
     for(int j = 0; j < Lanczos<Matrix,T>::k; j++) {
       Vector deltaEigenvector(n,0.);
       Vector v(n,0.);
       for(int i = 0; i < Lanczos<Matrix,T>::k; i++) {
           if (i == j) continue;
-      
+          
           Vector b = basisOld[j];
           assert(b.getDimension() == n);
           
@@ -221,14 +200,11 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
     }    
     DEBUG("[DYN] ************************************** ");
 
-    // TODO: change as to receive Delta as input argument in update
     // update for next run
-    // clear Delta
     eigenOld = eigen;
     basisOld = basis;
-    Matrix M = Matrix(Delta.numberOfRows());
     Lanczos<Matrix,T>::setup(Lanczos<Matrix,T>::A + Delta);
-    Delta = M;
+    Delta = Matrix(Delta.numberOfRows());
 
 
     DEBUG("[DYN] [NEW] ******************************** ");
