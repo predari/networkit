@@ -19,8 +19,8 @@ namespace NetworKit {
 
 
 /**
- * @ingroup centrality
- * Dynamic APSP.
+ * @ingroup numerics
+ * Dynamic eigen-updates based on lanczos.
  */
 
 template<class Matrix, typename T>
@@ -29,49 +29,46 @@ class DynLanczos : public Lanczos<Matrix, T>, public DynAlgorithm {
   
 public:
     /**
-     * Creates the object for @a G.
+     * Creates the object for @a A.
      *
-     * @param G The graph.
+     * @param A The matrix.
      */
-    //DynLanczos(const Matrix & A) :
-    //  Lanczos<Matrix,double>(A) {}
     DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision = true);
 
     ~DynLanczos() override = default;
 
     /**
-     * Runs static betweenness centrality algorithm on the initial graph.
+     * Runs static eigenpair computation via lanczos algorithm on the initial graph.
      */
     void run() override;
     
     /**
-     * Updates the betweenness centralities after an edge insertions on the graph.
-     * Notice: it works only with edge insertions.
+     * Updates the eigenpair computation after an edge event on the graph.
      *
-     * @param e The edge insertions.
+     * @param e The edge event.
      */
     void update(GraphEvent singleEvent) override {
         std::vector<GraphEvent> events{singleEvent};
         updateBatch(events);
     }
     /**
-     * Updates the betweenness centralities after a batch of edge insertions on the graph.
-     * Notice: it works only with edge insertions.
+     * Updates the eigenpair computation after a batch of edge events on the graph.
+     * Notice: it works only with edge events.
      *
-     * @param batch The batch of edge insertions.
+     * @param batch The batch of edge events.
      */
     
     void updateBatch(const std::vector<GraphEvent>& batch) override;
 
    
 
-    std::vector<T> getAllEigenvalues() ;
+    std::vector<T> getUpdatedEigenvalues() ;
     
-    T getEigenvalue(int i) ;
+    T getUpdatedEigenvalue(int i) ;
     
-    std::vector<Vector> getBasis() ;
+    std::vector<Vector> getUpdatedEigenvectors() ;
   
-    Vector getEigenvector(int i) ;
+    Vector getUpdatedEigenvector(int i) ;
 
     void loadEigenvectors(std::vector<Vector>);
     
@@ -255,28 +252,36 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
     
   }
 
-
-  template<class Matrix, typename T> inline std::vector<T> DynLanczos<Matrix, T> :: getAllEigenvalues() {
-    this->assureFinished();
-    return eigen;
+  template<class Matrix, typename T> inline std::vector<T> DynLanczos<Matrix, T> :: getUpdatedEigenvalues() {
+      this->assureFinished();
+      if(eigen.size() < Lanczos<Matrix,T>::k)
+          WARN("Lanczos algorithm returns less than k eigenvalues due to spurious behaviour.");
+      return eigen;
 }
 
-  template<class Matrix, typename T> inline T DynLanczos<Matrix, T>::getEigenvalue(int i) {
+  template<class Matrix, typename T> inline T DynLanczos<Matrix, T>::getUpdatedEigenvalue(int i) {
     this->assureFinished();
+    assert(i < eigen.size());
     return eigen[i];
 }
 
-  template<class Matrix, typename T> inline  std::vector<Vector> DynLanczos<Matrix, T>::getBasis() {
-    this->assureFinished();
-    return basis;
-}
+    template<class Matrix, typename T> inline  std::vector<Vector> DynLanczos<Matrix, T>::getUpdatedEigenvectors() {
+        this->assureFinished();
+        int k = Lanczos<Matrix,T>::k;
+        assert(basis.size() <= k);
+        return basis;
+    }
 
     
-  template<class Matrix, typename T> inline Vector DynLanczos<Matrix, T>::getEigenvector(int i) {
-    this->assureFinished();
-    return basis[i];
-}
+    template<class Matrix, typename T> inline Vector DynLanczos<Matrix, T>::getUpdatedEigenvector(int i) {
+        this->assureFinished();
+        assert(i < basis.size());
+        return basis[i];
+        
+  }
+    
 
+    
     template<class Matrix, typename T> inline void DynLanczos<Matrix, T>:: loadEigenvectors(std::vector<Vector> in_eigenvectors) {
         this->assureFinished();
         const int n = Lanczos<Matrix,T>::A.numberOfRows();
@@ -288,9 +293,7 @@ template<class Matrix, typename T> void DynLanczos<Matrix, T> :: run() {
                 basisOld[i] = in_eigenvectors[i];
         }
     }
-    
-
-    
+        
   
 
 } /* namespace NetworKit */

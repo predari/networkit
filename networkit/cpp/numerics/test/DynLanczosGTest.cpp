@@ -12,7 +12,7 @@ namespace NetworKit {
 class DynLanczosGTest : public testing::Test {};
 
 
-TEST(DynLanczosGTest, runDynVsStOnStSmallGraph) {
+TEST(DynLanczosGTest, DynVsStOnStSmallGraph) {
 
     /* Graph:
             0    3
@@ -107,7 +107,7 @@ TEST(DynLanczosGTest, runDynVsStOnStSmallGraph) {
 
 
 
-TEST(DynLanczosGTest, runDynVsStOnSt) {
+TEST(DynLanczosGTest, DynVsStOnSt) {
     METISGraphReader reader;
     Graph G = reader.read("../input/PGPgiantcompo.graph");
     //Graph G = reader.read("input/celegans_metabolic.graph");
@@ -148,7 +148,7 @@ TEST(DynLanczosGTest, runDynVsStOnSt) {
         WARN(" Static and dynamic should produce the same result on a static graph.");
     
     for (int i = 0; i < e.size(); i++) {
-        EXPECT_NEAR(e[i], dyn_e[i], 1e-5);
+        EXPECT_NEAR(e[i], dyn_e[i], 1e-3);
     }
 
     std::vector<Vector> dyn_evectors(k,Vector(n,0.));
@@ -158,7 +158,7 @@ TEST(DynLanczosGTest, runDynVsStOnSt) {
     for (int i =0; i< dyn_evectors.size(); i++) {
         ASSERT_EQ(n, dyn_evectors[i].getDimension());
         for (int j = 0; j< dyn_evectors[i].getDimension(); j++) {
-            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(evectors[i][j]), 1e-5);
+            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(evectors[i][j]), 1e-3);
         }
     }
 
@@ -286,14 +286,14 @@ TEST(DynLanczosGTest, DynVsStOnDynSmallGraph) {
     for (int i =0; i< evectors.size(); i++) {
         ASSERT_EQ(n, evectors[i].getDimension());
         for (int j = 0; j< evectors[i].getDimension(); j++) {
-            EXPECT_NEAR(fabs(evectors[i][j]), fabs(dyn_v[i][j]), 1e-5);
+            EXPECT_NEAR(fabs(evectors[i][j]), fabs(dyn_v[i][j]), 1e-3);
         }
     }
 
     // running dynamic update on eigenvalues and eigenvectors simmultaneously
     dyn_l.updateBatch(batch);
-    std::vector<double> dyn_e = dyn_l.getAllEigenvalues();
-    std::vector<Vector> dyn_evectors = dyn_l.getBasis();
+    std::vector<double> dyn_e = dyn_l.getUpdatedEigenvalues();
+    std::vector<Vector> dyn_evectors = dyn_l.getUpdatedEigenvectors();
 
     double err1= 0;
     for(count i=0; i<k; i++) {
@@ -321,13 +321,13 @@ TEST(DynLanczosGTest, DynVsStOnDynSmallGraph) {
     DEBUG("******************************************** ");
 
     for (int i = 0; i < e.size(); i++) {
-        EXPECT_NEAR(dyn_eigens[i], dyn_e[i], 1e-5);
+        EXPECT_NEAR(dyn_eigens[i], dyn_e[i], 1e-3);
     }
     ASSERT_TRUE(dyn_l.checkEigenvectors());
     for (int i =0; i< dyn_evectors.size(); i++) {
         ASSERT_EQ(n, dyn_evectors[i].getDimension());
         for (int j = 0; j< dyn_evectors[i].getDimension(); j++) {
-            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(dyn_v[i][j]), 1e-5);
+            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(dyn_v[i][j]), 1e-3);
 
         }
     }    
@@ -390,8 +390,8 @@ TEST(DynLanczosGTest, DynVsStOnDyn) {
 
     // running dynamic update on eigenvalues and eigenvectors simmultaneously
     dyn_l.updateBatch(batch);
-    std::vector<double> dyn_e = dyn_l.getAllEigenvalues();
-    std::vector<Vector> dyn_evectors = dyn_l.getBasis();
+    std::vector<double> dyn_e = dyn_l.getUpdatedEigenvalues();
+    std::vector<Vector> dyn_evectors = dyn_l.getUpdatedEigenvectors();
     
     double err1= 0;
     for(count i=0; i<k; i++) {
@@ -419,13 +419,13 @@ TEST(DynLanczosGTest, DynVsStOnDyn) {
     DEBUG("******************************************** ");
 
     for (int i = 0; i < e.size(); i++) {
-        EXPECT_NEAR(e[i], dyn_e[i], 1e-5);
+        EXPECT_NEAR(e[i], dyn_e[i], 1e-3);
     }
     ASSERT_TRUE(dyn_l.checkEigenvectors());
     for (int i =0; i< dyn_evectors.size(); i++) {
         ASSERT_EQ(n, dyn_evectors[i].getDimension());
         for (int j = 0; j< dyn_evectors[i].getDimension(); j++) {
-            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(evectors[i][j]), 1e-5);
+            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(evectors[i][j]), 1e-3);
 
         }
     }    
@@ -479,7 +479,7 @@ TEST(DynLanczosGTest, DynBatchSeries) {
     ASSERT_LE(dyn_e.size(), k);
         
     for (int i = 0; i < dyn_e.size(); i++) {
-        EXPECT_NEAR(eigens[i], dyn_e[i], 1e-5);
+        EXPECT_NEAR(eigens[i], dyn_e[i], 1e-3);
     }
 
     std::vector<Vector> dyn_evectors(k,Vector(n,0.));
@@ -490,7 +490,7 @@ TEST(DynLanczosGTest, DynBatchSeries) {
     for (int i =0; i< dyn_evectors.size(); i++) {
         ASSERT_EQ(n, dyn_evectors[i].getDimension());
         for (int j = 0; j< dyn_evectors[i].getDimension(); j++) {
-            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(v[i][j]), 1e-5);
+            EXPECT_NEAR(fabs(dyn_evectors[i][j]), fabs(v[i][j]), 1e-3);
         }
     }    
 
@@ -550,8 +550,8 @@ TEST(DynLanczosGTest, DynBatchSeries) {
     DEBUG("******************************************** ");
 
     dyn_l.updateBatch(batch);
-    dyn_e = dyn_l.getAllEigenvalues();
-    dyn_evectors = dyn_l.getBasis();
+    dyn_e = dyn_l.getUpdatedEigenvalues();
+    dyn_evectors = dyn_l.getUpdatedEigenvectors();
     
 
     // for (int i = 0; i < dyn_e.size(); i++) 
@@ -573,8 +573,9 @@ TEST(DynLanczosGTest, DynBatchSeries) {
     batch2.push_back(GraphEvent(GraphEvent::EDGE_ADDITION, v1, v2, 1.0));
     
     dyn_l.updateBatch(batch2);
-    dyn_e = dyn_l.getAllEigenvalues();
-    dyn_evectors = dyn_l.getBasis();
+    dyn_e = dyn_l.getUpdatedEigenvalues();
+    dyn_evectors = dyn_l.getUpdatedEigenvectors();
+
 
     ASSERT_TRUE(dyn_l.checkEigenvectors());
 
