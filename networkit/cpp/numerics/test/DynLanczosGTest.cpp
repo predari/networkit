@@ -47,13 +47,12 @@ TEST(DynLanczosGTest, DynVsStOnStSmallGraph) {
     auto L = CSRMatrix::laplacianMatrix(G);
 
     int k = 2;
-    int a = 2;
-    int skip = 16;
+    int skip = 1;
     std::vector<double> e(k,0.);
     ASSERT_EQ(k, e.size());
 
     // runing static algorithm
-    Lanczos<CSRMatrix, double> l(L, k, a, skip);
+    Lanczos<CSRMatrix, double> l(L, k, skip);
     l.run();
     e = l.getkEigenvalues();
     ASSERT_LE(e.size(), k);
@@ -73,7 +72,7 @@ TEST(DynLanczosGTest, DynVsStOnStSmallGraph) {
     }    
     
     // runing dynamic algorithm
-    DynLanczos<CSRMatrix,double> dyn_l(L, k, a, skip);
+    DynLanczos<CSRMatrix,double> dyn_l(L, k, skip);
     dyn_l.run();
     std::vector<double> dyn_e = dyn_l.getkEigenvalues();
     ASSERT_LE(dyn_e.size(), k);
@@ -115,12 +114,12 @@ TEST(DynLanczosGTest, DynVsStOnSt) {
     auto L = CSRMatrix::laplacianMatrix(G);
 
     int k = 2;
-    int a = 2;
-    int skip = 16;
+
+    int skip = 1;
     std::vector<double> e(k,0.);
 
     // runing static algorithm
-    Lanczos<CSRMatrix, double> l(L, k, a, skip);
+    Lanczos<CSRMatrix, double> l(L, k, skip);
     l.run();
     e = l.getkEigenvalues();
     ASSERT_LE(e.size(), k);
@@ -132,7 +131,7 @@ TEST(DynLanczosGTest, DynVsStOnSt) {
 
     
     // runing dynamic algorithm
-    DynLanczos<CSRMatrix,double> dyn_l(L, k, a, skip);
+    DynLanczos<CSRMatrix,double> dyn_l(L, k, skip);
     dyn_l.run();
     std::vector<double> dyn_e = dyn_l.getkEigenvalues();
     ASSERT_LE(dyn_e.size(), k);
@@ -189,14 +188,13 @@ TEST(DynLanczosGTest, DynVsStOnDynSmallGraph) {
     auto L = CSRMatrix::laplacianMatrix(G);
 
     int k = 2;
-    int a = 2;
-    int skip = 16;
+    int skip = 1;
 
-    Lanczos<CSRMatrix, double> l(L, k, a, skip);
+    Lanczos<CSRMatrix, double> l(L, k, skip);
     l.run();
     l.computekEigenvectors();
     
-    DynLanczos<CSRMatrix,double> dyn_l(L, k, a, skip);
+    DynLanczos<CSRMatrix,double> dyn_l(L, k, skip);
     dyn_l.run();
     dyn_l.computekEigenvectors();
 
@@ -334,14 +332,13 @@ TEST(DynLanczosGTest, DynVsStOnDyn) {
     auto L = CSRMatrix::laplacianMatrix(G);
 
     int k = 2;
-    int a = 2;
-    int skip = 16;
+    int skip = 1;
 
-    Lanczos<CSRMatrix, double> l(L, k, a, skip);
+    Lanczos<CSRMatrix, double> l(L, k, skip);
     l.run();
     l.computekEigenvectors();
     
-    DynLanczos<CSRMatrix,double> dyn_l(L, k, a, skip);
+    DynLanczos<CSRMatrix,double> dyn_l(L, k, skip);
     dyn_l.run();
     dyn_l.computekEigenvectors();
 
@@ -456,11 +453,10 @@ TEST(DynLanczosGTest, DynBatchSeries) {
     auto L = CSRMatrix::laplacianMatrix(G);
 
     int k = 2;
-    int a = 2;
-    int skip = 16;
+    int skip = 1;
 
 
-    DynLanczos<CSRMatrix,double> dyn_l(L, k, a, skip);
+    DynLanczos<CSRMatrix,double> dyn_l(L, k, skip);
     dyn_l.run();
     std::vector<double> dyn_e = dyn_l.getkEigenvalues();
     ASSERT_LE(dyn_e.size(), k);

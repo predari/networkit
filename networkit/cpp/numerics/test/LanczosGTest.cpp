@@ -33,12 +33,11 @@ TEST(LanczosGTest, kEigenvectorsAdjacency) {
     const auto A = CSRMatrix::adjacencyMatrix(G);    
     
     int k = 2;
-    int a = 2;
-    int skip = 16;
+    int skip = 1;
     std::vector<double> e(k,0.);
 
 
-    Lanczos<CSRMatrix,double> s(A, k, a, skip, true);
+    Lanczos<CSRMatrix,double> s(A, k, skip);
     s.run();
     e = s.getkEigenvalues();
     ASSERT_LE(e.size(), k);
@@ -84,13 +83,12 @@ TEST(LanczosGTest,  OneEigenvectorLaplacian) {
 
     
     int k = 2;
-    int a = 2;
-    int skip = 16;
+    int skip = 1;
     std::vector<double> e(k,0.);
          
     std::vector<Vector> evectors(k,Vector(n,0.));
     
-    Lanczos<CSRMatrix,double> s(L, k, a, skip, true);
+    Lanczos<CSRMatrix,double> s(L, k, skip);
     s.run();
     e = s.getkEigenvalues();
     ASSERT_LE(e.size(), eigens.size());
@@ -150,10 +148,10 @@ TEST(LanczosGTest,  kEigenvectorsLaplacian) {
 
     int k = 2;
     int a = 2;
-    int skip = 16;
+    int skip = 1;
     std::vector<double> e(k,0.);
     
-    Lanczos<CSRMatrix,double> s(L, k, a, skip, true, 1e-06);
+    Lanczos<CSRMatrix,double> s(L, k, skip, 1e-06);
     s.run();
     e = s.getkEigenvalues();
     ASSERT_LE(e.size(), eigens.size());
@@ -220,10 +218,10 @@ TEST(LanczosGTest,  kEigenvectorsDynamicLaplacian) {
 
     int k = 2;
     int a = 2;
-    int skip = 16;
+    int skip = 1;
     std::vector<double> e(k,0.);
     
-    Lanczos<DynamicMatrix,double> s(L, k, a, skip, true);
+    Lanczos<DynamicMatrix,double> s(L, k, skip);
     s.run();
     e = s.getkEigenvalues();
     ASSERT_LE(e.size(), eigens.size());
@@ -281,10 +279,10 @@ TEST(LanczosGTest, FullEigenvaluesLaplacian) {
 
     const auto L = CSRMatrix::laplacianMatrix(G);
     int a = 2;
-    int skip = 16;
+    int skip = 1;
     std::vector<double> e(n,0.);
     
-    Lanczos<CSRMatrix,double> s(L, n, a, skip, true);
+    Lanczos<CSRMatrix,double> s(L, n,  skip);
     s.run();
     e = s.getkEigenvalues();
     ASSERT_LE(e.size(), eigens.size());

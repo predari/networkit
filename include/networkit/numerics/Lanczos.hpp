@@ -40,11 +40,11 @@ class Lanczos : public Algorithm {
 public:
     Lanczos(){};
     Lanczos(const Matrix & A);
-    Lanczos(const Matrix & A, const int k, int a, int skip, bool double_precision = true, const T epsilon = 1e-5);
+    Lanczos(const Matrix & A, const count k, int skip, const T epsilon = 1e-5);
     
     ~Lanczos() override = default;
 
-    void setup(const Matrix &A, const int k, int a, int skip, bool double_precision = true, const T epsilon = 1e-5);
+    void setup(const count k, int skip, const T epsilon = 1e-5);
 
     void setup(const Matrix &A);
     
@@ -89,12 +89,12 @@ public:
   
 protected:
     Matrix A;
-    int k;
-    int a;
-    int b;
+    // number of desired eigenvalues
+    count k;
+    // skip to determine how often we compute eigenvalues of symtri matrix
     int skip;
     T epsilon;
-    int iterations = 0;
+    count iterations = 0;
     std::vector<T> eigenvalues;
     std::vector<Vector> eigenvectors;
     
@@ -152,86 +152,62 @@ private:
 
 };
 
-  template<class Matrix, typename T> Lanczos<Matrix, T> :: Lanczos(const Matrix &A) {
-    this->A = A;
-    k = 0;
-    a = 0;
-    skip = 0;
-    b = 0;
-    epsilon = 0.;
-  }
+    // Matrix(&A) : to use the move constructor
+    // for variable const Matrix * A; and parameter in constructor const Matrix &A,
 
-
-    template<class Matrix, typename T> Lanczos<Matrix, T> :: Lanczos(const Matrix &A, const int k, int a, int skip, bool double_precision, const T epsilon) {
-
-    this->A = A;
-    this->k = k;
-    int n = A.numberOfColumns();
-    if ( (this->k < 1) || (this->k > n) )
-      throw std::runtime_error("Error, k = 0 or > n.");
-   
-    this->a = a;
-    this->skip = skip;
-    if (double_precision)
-      this->b = 64;
-    else
-      this->b = 8;
-    this->epsilon = epsilon;
-    
-    eigenvalues.resize(k, 0.);
-    eigenvectors.resize(k);
-    
+    template<class Matrix, typename T> Lanczos<Matrix, T> :: Lanczos(const Matrix &A, const count k, int skip, const T epsilon):
+        Algorithm(), A(Matrix(A.numberOfRows(), A.numberOfColumns())), k(k), skip(skip), epsilon(epsilon), eigenvalues(k,0.), eigenvectors(k) 
+    {
+        if (k > A.numberOfColumns() || k <= 0)
+            throw std::runtime_error("k must be between 1 and n");
+        if (A.numberOfColumns()!=A.numberOfRows())
+            throw std::runtime_error("A must have same row and column dimensions");
   }
 
     template<class Matrix, typename T> void Lanczos<Matrix, T> :: setup(const Matrix &A) {
-        
-        if ( A == 0 )
-            throw std::runtime_error("Error, empty matrix A.");
-        this->A = A; 
-        int n = A.numberOfColumns();
-        if ( (k < 1) || (k > n) )
-            throw std::runtime_error("Error, k = 0 or > n.");
-
+        this->A = A;       
 }
 
 
     
-    template<class Matrix, typename T> void Lanczos<Matrix, T> :: setup(const Matrix &A, const int k, int a, int skip, bool double_precision, const T epsilon) {
+    template<class Matrix, typename T> void Lanczos<Matrix, T> :: setup(const count k, int skip, const T epsilon) {
+        if (k > A.numberOfColumns() || k <= 0)
+            throw std::runtime_error("k must be between 1 and n");
+        this->k = k;    
+        this->skip = skip;
+        this->epsilon = epsilon;
         
-    if ( A == 0 )
-      throw std::runtime_error("Error, empty matrix A.");
-    this->A = A; 
-    this->k = k;
-    int n = A.numberOfColumns();
-    if ( (this->k < 1) || (this->k > n) )
-      throw std::runtime_error("Error, k = 0 or > n.");
-    
-    this->a = a;
-    this->skip = skip;
-    if (double_precision)
-      this->b = 64;
-    else
-      this->b = 8;
-    this->epsilon = epsilon;
-        
-    eigenvalues.resize(k, 0.);
-    eigenvectors.resize(k);
-}
+        eigenvalues.resize(k, 0.);
+        eigenvectors.resize(k);
+    }
   
   template<class Matrix, typename T> void Lanczos<Matrix, T> :: run () {
   
     std::cout << "*** Running Lanczos ***" << std::endl;
-    std::cout << "*** Eigenvalue count k =  " << k <<  std::endl;
-    std::cout << "*** Precision epsilon  =  " << epsilon  << std::endl;
+    std::cout << "*** eigenvalue count k =  " << k << ", epsilon  =  " << epsilon  << std::endl;
     assert(eigenvalues.size() <= k);
-    int steps = 0;
-    for (steps = a * k + 1; steps < b * k; steps += skip) {
-        lanczos_eigen(steps);
-    }
-    iterations = steps;
+
+    std::vector<double> olde, newe;
+    // not starting from zero
+    count numIterations =  (2 * k) + 1;
+    count offset = numIterations;
+    do {
+        olde = eigenvalues;
+        lanczos_eigen(numIterations);
+        newe = eigenvalues;
+        // resizing to force finding k eigenvalues ? makes algo more difficult to converge
+        if (olde.size() != newe.size() ) {
+            size_t n_size = std::max((int)olde.size(), (int)newe.size());
+            if (n_size == olde.size()) newe.resize(n_size); else olde.resize(n_size);
+        }
+        numIterations++;
+        std::cout << "convergence norm: " << (Vector(newe) - Vector(olde)).length() << " iteration count = " << numIterations << std::endl;
+        // TODO: use a different epsilon
+    } while ((Vector(newe) - Vector(olde)).length() > epsilon && numIterations < 1500);
+    
+    iterations = numIterations;
     std::cout << "*** Lanczos iterations = " <<  iterations << std::endl;
     std::cout << "*** run status: success ***" << std::endl;
-
     hasRun = true;
 }
 
@@ -357,6 +333,7 @@ private:
         std::vector<T> test_e = tqlrat_eigen(tridiag);
 
         std::vector<T> eigen;
+        
 
         int i = 0;
         int j = 0;
@@ -385,8 +362,8 @@ private:
         }
         std::sort(eigen.rbegin(), eigen.rend());
 
-        eigen.resize(std::min((int)eigen.size(), this->k));
-        eigenvectors.resize(std::min((int)eigen.size(), this->k));
+        eigen.resize(std::min((int)eigen.size(), (int)this->k));
+        eigenvectors.resize(std::min((int)eigen.size(), (int)this->k));
         return eigen;
     }
 
@@ -477,7 +454,7 @@ private:
     do {
         old = eigenvector;
         ConjugateGradient<Matrix, IdentityPreconditioner<Matrix>> cg(solver_tol);
-        // TODO: must solve for tridiagonal matrix instead!!! Use basis from Lanczos to compute eigenvectors of A.
+        // TODO: implement for tridiagonal.
         cg.setup(M);
         cg.solve(old, eigenvector);
         eigenvector /= eigenvector.length();

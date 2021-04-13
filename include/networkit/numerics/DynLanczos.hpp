@@ -32,7 +32,7 @@ namespace NetworKit {
          *
          * @param A The matrix.
          */
-        DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision = true, const T epsilon = 1e-05);
+        DynLanczos(const Matrix & A, const count k, int skip, const T epsilon = 1e-05);
 
         ~DynLanczos() override = default;
         
@@ -84,8 +84,9 @@ namespace NetworKit {
 };
   
     template<class Matrix, typename T>
-    DynLanczos<Matrix, T>::DynLanczos(const Matrix & A, const int k, int a, int skip, bool double_precision, const T epsilon) :
-        Lanczos<Matrix,T>(A, k, a, skip, double_precision, epsilon), Delta(Matrix(A.numberOfRows(), A.numberOfColumns())), eigen(k, 0.), basis(k, Vector(A.numberOfRows(), 0.)){ }
+    DynLanczos<Matrix, T>::DynLanczos(const Matrix & A, const count k, int skip, const T epsilon) :
+        Lanczos<Matrix,T>(A, k, skip, epsilon), Delta(Matrix(A.numberOfRows(), A.numberOfColumns())),
+        eigen(k, 0.), basis(k, Vector(A.numberOfRows(), 0.)){ }
     
 
   
