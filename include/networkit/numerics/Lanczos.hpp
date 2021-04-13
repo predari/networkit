@@ -152,8 +152,6 @@ private:
 
 };
 
-    // Matrix(&A) : to use the move constructor
-    // for variable const Matrix * A; and parameter in constructor const Matrix &A,
 
     template<class Matrix, typename T> Lanczos<Matrix, T> :: Lanczos(const Matrix &A, const count k, int skip, const T epsilon):
         Algorithm(), A(Matrix()), k(k), skip(skip), epsilon(epsilon), eigenvalues(k,0.), eigenvectors(k) 
