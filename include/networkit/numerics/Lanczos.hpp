@@ -344,7 +344,6 @@ private:
 
         iterations = steps;
         eigenvalues = lanczos_no_spurious(tridiag);
-        //SymTri = Matrix(tridiag.convert_to_CSR());
 }
 
   
