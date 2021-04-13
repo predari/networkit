@@ -69,7 +69,8 @@ namespace NetworKit {
         Vector getUpdatedEigenvector(int i) ;
 
 
-        void loadEigenvectors(std::vector<Vector>);
+        bool setEigenvectors(std::vector<Vector>);
+        bool setEigenvalues(std::vector<double>);
     
 
     private:
@@ -182,18 +183,37 @@ namespace NetworKit {
   }
 
     
-    template<class Matrix, typename T> inline void DynLanczos<Matrix, T>:: loadEigenvectors(std::vector<Vector> in_eigenvectors) {
-        this->assureFinished();
+    template<class Matrix, typename T> inline bool DynLanczos<Matrix, T>:: setEigenvectors(std::vector<Vector> in_eigenvectors) {
         const int n = Lanczos<Matrix,T>::A.numberOfRows();
-        assert(basisOld.size() == in_eigenvectors.size());
+        const int k = Lanczos<Matrix,T>::k;
+        assert(in_eigenvectors.size() <= k || !in_eigenvectors.size());
+        if(basisOld.size() != in_eigenvectors.size())
+            basisOld.resize(in_eigenvectors.size());
         for (int i = 0; i < in_eigenvectors.size(); i++) {
-            if (basisOld[i].getDimension() != n)
-                basisOld[i] = Vector(in_eigenvectors[i]);
+            if (in_eigenvectors[i].getDimension() != n)
+                return false;
             else
                 basisOld[i] = in_eigenvectors[i];
         }
+        return true;
     }
-        
+
+
+    template<class Matrix, typename T> inline bool DynLanczos<Matrix, T>:: setEigenvalues(std::vector<double> in_eigenvalues) {
+        const int k = Lanczos<Matrix,T>::k;
+        if(in_eigenvalues.size() > k || !in_eigenvalues.size())
+            return false;
+        if(eigenOld.size() != in_eigenvalues.size())
+            eigenOld.resize(in_eigenvalues.size());
+        for (int i = 0; i < in_eigenvalues.size(); i++) {
+            eigenOld[i] = in_eigenvalues[i];
+        }
+        return true;
+    }
+
+
+
+    
   
 
 } /* namespace NetworKit */
