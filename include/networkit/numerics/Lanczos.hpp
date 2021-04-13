@@ -94,7 +94,7 @@ protected:
     int b;
     int skip;
     T epsilon;
-    int steps = 0;
+    int iterations = 0;
     std::vector<T> eigenvalues;
     std::vector<Vector> eigenvectors;
     
@@ -103,10 +103,8 @@ private:
      * @brief   Performing lanczos iterations.
      * @details creates the symmetric tridiagonal matrix for a required number of steps 
      * @param   number of steps to run the iterations
-     * @param   epsilon precision threshold
-     * @return  list of eigenvalues
      */
-    std::vector<T> lanczos_eigen(int steps);
+    void lanczos_eigen(int steps);
 
     /**
      * @brief   Removes spurious eigenvalues
@@ -226,10 +224,12 @@ private:
     std::cout << "*** Eigenvalue count k =  " << k <<  std::endl;
     std::cout << "*** Precision epsilon  =  " << epsilon  << std::endl;
     assert(eigenvalues.size() <= k);
-    for (int steps = a * k + 1; steps < b * k; steps += skip) {
-      eigenvalues = lanczos_eigen(steps);
+    int steps = 0;
+    for (steps = a * k + 1; steps < b * k; steps += skip) {
+        lanczos_eigen(steps);
     }
-    std::cout << "*** Lanczos iterations = " <<  this->steps << std::endl;
+    iterations = steps;
+    std::cout << "*** Lanczos iterations = " <<  iterations << std::endl;
     std::cout << "*** run status: success ***" << std::endl;
 
     hasRun = true;
@@ -312,7 +312,7 @@ private:
 
   
   
-    template <class Matrix, typename T> std::vector<T> Lanczos<Matrix, T> :: lanczos_eigen(int steps) {
+    template <class Matrix, typename T> void Lanczos<Matrix, T> :: lanczos_eigen(int steps) {
 
         int n = A.numberOfColumns();
         assert(n > 0 && n == A.numberOfRows());
@@ -342,9 +342,9 @@ private:
             beta = r.length();
         }
 
-        this->steps = steps;  
-        // epsilon precision for the spurious is different, default 1e-03
-        return lanczos_no_spurious(tridiag);
+        iterations = steps;
+        eigenvalues = lanczos_no_spurious(tridiag);
+        //SymTri = Matrix(tridiag.convert_to_CSR());
 }
 
   
@@ -353,15 +353,9 @@ private:
                
         assert(tridiag.size() > 0);
         std::vector<T> e = tqlrat_eigen(tridiag);
-        // for (int i=0; i < e.size(); i++)
-        //     std::cout << e[i] << " ";
-        // std::cout << std::endl;
 
         tridiag.remove_forward(0);
         std::vector<T> test_e = tqlrat_eigen(tridiag);
-        // for (int i=0; i < test_e.size(); i++)
-        //     std::cout << test_e[i] << " ";
-        // std::cout << std::endl;
 
         std::vector<T> eigen;
 

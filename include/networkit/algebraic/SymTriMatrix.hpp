@@ -28,6 +28,20 @@ public:
     void remove_forward(int i);
     void remove_backward(int i);
 
+    // template <class Matrix>
+    // Matrix convert_to_CSR() {
+    //     int n = alpha_.size();
+    //     std::vector<Triplet> triplets;
+    //     for (index i = 0; i < n ; ++i) {
+    //         triplets.push_back( {i, i, alpha_[i]});
+    //         if ( i < n-1 ) {
+    //             triplets.push_back( {i, i + 1, beta_[i]});
+    //             triplets.push_back( {i + 1, i, beta_[i]});
+    //         }
+    //     }
+    //     return Matrix(n, n, triplets);
+    // }
+
     const T &alpha(int i) const { return alpha_[i]; }
     const T &beta(int i) const { return beta_[i]; }
 
@@ -65,6 +79,7 @@ void SymTriMatrix<T>::remove_backward(int i) {
     beta_.erase(beta_.begin() - 1 + i);
 }
 
+    
 }
 
 #endif // NETWORKIT_ALGEBRAIC_SYM_TRI_MATRIX_HPP_
