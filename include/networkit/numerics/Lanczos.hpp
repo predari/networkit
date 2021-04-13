@@ -19,6 +19,7 @@
 #include <networkit/numerics/Preconditioner/DiagonalPreconditioner.hpp>
 #include <networkit/numerics/Preconditioner/IdentityPreconditioner.hpp>
 
+#include <cfloat>
 
 namespace NetworKit {
 
