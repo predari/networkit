@@ -156,8 +156,10 @@ private:
     // for variable const Matrix * A; and parameter in constructor const Matrix &A,
 
     template<class Matrix, typename T> Lanczos<Matrix, T> :: Lanczos(const Matrix &A, const count k, int skip, const T epsilon):
-        Algorithm(), A(Matrix(A.numberOfRows(), A.numberOfColumns())), k(k), skip(skip), epsilon(epsilon), eigenvalues(k,0.), eigenvectors(k) 
+        Algorithm(), A(Matrix()), k(k), skip(skip), epsilon(epsilon), eigenvalues(k,0.), eigenvectors(k) 
     {
+        this->A = A;        
+        assert(this->A.numberOfColumns() && this->A.numberOfRows());
         if (k > A.numberOfColumns() || k <= 0)
             throw std::runtime_error("k must be between 1 and n");
         if (A.numberOfColumns()!=A.numberOfRows())
