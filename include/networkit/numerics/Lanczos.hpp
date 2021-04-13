@@ -19,7 +19,7 @@
 #include <networkit/numerics/Preconditioner/DiagonalPreconditioner.hpp>
 #include <networkit/numerics/Preconditioner/IdentityPreconditioner.hpp>
 
-#include <cfloat>
+
 
 namespace NetworKit {
 
@@ -134,7 +134,7 @@ private:
      * @param   epsilon precision threshold
      * @return  list of eigenvalues
      */
-    std::vector<T> qr_eigen(const SymTriMatrix<T> &matrix);
+    /* std::vector<T> qr_eigen(const SymTriMatrix<T> &matrix); */
 
     /**
      * @brief   Computing eigenvectors for a given eigenvalue.
@@ -149,7 +149,7 @@ private:
      */
     
     Vector inverse_iteration(T eigenvalue);
-    bool inverse_iterationB(T eigenvalue);
+
 
 
 };
@@ -465,47 +465,6 @@ private:
     }
 
 
-    template<class Matrix, typename T>
-    std::vector<T> Lanczos<Matrix,T> :: qr_eigen(const SymTriMatrix<T> &matrix) {
-
-
-        SymTriMatrix<T> tridiag = matrix;
-        int n = tridiag.size();
-
-        tridiag.resize(n + 1);
-        tridiag.alpha(n) = 0;
-        tridiag.beta(n - 1) = 0;
-        for (int i = 0; i < n - 1; ++i) {
-            tridiag.beta(i) = tridiag.beta(i) * tridiag.beta(i);
-        }
-        bool converged = false;
-        while (!converged) {
-            T diff(0);
-            T u(0);
-            T ss2(0), s2(0); // previous and current value of s^2
-            for (int i = 0; i < n; ++i) {
-                T gamma = tridiag.alpha(i) - u;
-                T p2 = T(std::abs(1 - s2)) < epsilon ? (1 - ss2) * tridiag.beta(i - 1) : gamma * gamma / (1 - s2);
-                if (i > 0) {
-                    tridiag.beta(i - 1) = s2 * (p2 + tridiag.beta(i));
-                }
-                ss2 = s2;
-                s2 = tridiag.beta(i) / (p2 + tridiag.beta(i));
-                u = s2 * (gamma + tridiag.alpha(i + 1));
-                // update alpha
-                T old = tridiag.alpha(i);
-                tridiag.alpha(i) = gamma + u;
-                diff = std::max(diff, T(std::abs(old - tridiag.alpha(i))));
-            }
-            if (diff < epsilon) {
-                converged = true;
-            }
-        }
-        
-        return std::vector<T>(tridiag.alpha_data(), tridiag.alpha_data() + n);
-}
-
-
   template<class Matrix, typename T>
   Vector Lanczos<Matrix,T> :: inverse_iteration(T eigenvalue) {
 
@@ -537,65 +496,6 @@ private:
 }
 
 
-
-  template<class Matrix, typename T>
-  bool Lanczos<Matrix,T> :: inverse_iterationB(T eigenvalue) {
-
-    double halt = 1e-4;
-    int n = A.numberOfColumns();
-    int rows = A.numberOfColumns();
-    int iterations = rows;
-
-    const auto lambdaI = Matrix::diagonalMatrix(eigenvalue*Vector(n,1.0));
-    Matrix _A = A - lambdaI;
-    Matrix scratch_A;
-    Vector d;
-    double r_inf;
-    Vector x = Vector(n);
-
-    Vector u = Vector(n);
-    for (index i = 0; i < n; ++i) {
-      u[i] = 2.0 * Aux::Random::real() - 1.0;
-    }
-    
-    //u.set_WiP ();
-    // _Ax_n = x_n+1 -> Ax_n+1=x_n, factor with QR
-    while (true) {
-        scratch_A = _A;
-        //scratch_A.copy ();
-        ConjugateGradient<Matrix, IdentityPreconditioner<Matrix>> cg(1e-5);
-        cg.setup(scratch_A);
-        cg.solve(u, x);
-        x /= x.length();
-        u = x;
-        d = _A * u;
-
-
-        r_inf = DBL_MIN;
-        for (int i = 0; i < rows; ++i)
-            if (r_inf < fabs (d[i]))
-                r_inf = fabs (d[i]);
-        
-#if 0
-
-        Vector Rayleigh = A * u;
-       	double quotient = u.transpose () * Rayleigh;;
-        double r = ((A * u - eigenvalue * u).length());
-        double R = eigenvalue - quotient;
-#endif
-
-        if (r_inf <= halt)
-            break;
-        
-        --iterations;
-        if (iterations < 0)
-                return false;
-    }
-    
-    return true;
-}
-
-  
 
   
 
