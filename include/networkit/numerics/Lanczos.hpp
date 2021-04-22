@@ -105,6 +105,7 @@ private:
      * @param   number of steps to run the iterations
      */
     void lanczos_eigen(int steps);
+    void lanczos_eigen_full(int steps);
 
     /**
      * @brief   Removes spurious eigenvalues
@@ -113,7 +114,8 @@ private:
      * @param   epsilon precision for the check of spurious eigenvalues
      * @return  list of eigenvalues
      */
-    std::vector<T> lanczos_no_spurious(SymTriMatrix<T> &tridiag, const T epsilon = 1e-3);
+     std::vector<T> lanczos_no_spurious(SymTriMatrix<T> &tridiag, const T epsilon = 1e-3);
+     std::vector<T> lanczos_no_spurious(Matrix &tridiag, const T epsilon = 1e-3);
 
     /**
      * @brief   Calculating eigenvalues for symmetric tridiagonal matrices.
@@ -125,6 +127,7 @@ private:
      * @return  list of eigenvalues
      */
     std::vector<T> tqlrat_eigen(const SymTriMatrix<T> &matrix);
+    std::vector<T> tqlrat_eigen(const Matrix &matrix);
     /**
      * @brief   QR eigendecomposition for symmetric tridiagonal matrices.
      * 
@@ -321,6 +324,43 @@ private:
         iterations = steps;
         eigenvalues = lanczos_no_spurious(tridiag);
 }
+
+
+
+  template <class Matrix, typename T> void Lanczos<Matrix, T> :: lanczos_eigen_full(int steps) {
+
+    int n = A.numberOfColumns();
+    assert(n > 0 && n == A.numberOfRows());
+    assert(steps > 2 * k);
+    
+    //SymTriMatrix<T> tridiag(steps);
+    Matrix tridiag Matrix(steps);
+    
+    std::vector< Vector > basis;
+    
+    Vector r(n, 0);
+    r[0] = 1; // initialize a "random" vector
+    T beta = r.length(); // l2 norm
+        
+    for (int t = 0; t < steps; ++t) {
+      if (t > 0) {
+	tridiag.beta(t - 1) = beta;
+      }
+      r = r * (1 / beta);
+      basis.push_back(r);
+      r = A * r;
+      T alpha  = r.transpose() * basis[t];
+      r += -alpha * basis[t];
+      if (t > 0) {
+	r += -beta * basis[t - 1];
+      }
+      tridiag.alpha(t) = alpha;
+      beta = r.length();
+    }
+
+    iterations = steps;
+    eigenvalues = lanczos_no_spurious(tridiag);
+  }
 
   
     template<class Matrix, typename T>
