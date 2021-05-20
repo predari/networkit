@@ -130,7 +130,7 @@ TEST_F(GlobalGTest, testTriangleCounting) {
 }
 
 
-TEST_F(GlobalGTest, testToyDynTriangleCounting) {
+TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
 
 /* Graph: 
 7 - 2 
@@ -153,7 +153,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCounting) {
 
     DynTriangleCounting dyntc(G);
     dyntc.run();
-    count triangles = dyntc.getTriangleCount();
+    double triangles = dyntc.getTriangleCount();
     INFO("** Triangles in G = ", triangles, ".");
     EXPECT_EQ(1, triangles);
     
@@ -169,10 +169,22 @@ TEST_F(GlobalGTest, testToyDynTriangleCounting) {
     INFO(" ** Updated G (n, m) = (" ,G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
     dyntc.reset(G, true);
     dyntc.run();
-    count new_triangles = dyntc.getTriangleCount();
+    double new_triangles = dyntc.getTriangleCount();
     INFO("** Triangles in updated G = ", new_triangles, ".");
     EXPECT_GE(new_triangles, triangles);
 
+    std::vector<double> t_score = dyntc.getTriangleScores();
+    assert(t_score.size() == G.numberOfNodes());
+    double t_t = 0;
+    std::cout << " [ ";
+    for (node u = 0; u < G.upperNodeIdBound(); u++) {
+            t_t += t_score[u];
+            std::cout << t_score[u] << " ";
+    }
+    std::cout << " ] " << std::endl;
+    std::cout << " t_t  = " << t_t << std::endl;
+    EXPECT_EQ(t_t/6, new_triangles);
+    
     G.removeEdge(0,2);
     G.removeEdge(0,3);
     G.removeEdge(3,2);
@@ -186,17 +198,85 @@ TEST_F(GlobalGTest, testToyDynTriangleCounting) {
     assert(dyntc.checkSorted());
     
     dyntc.updateBatch(addition);
-    count update_triangles = dyntc.getTriangleCount();
-    printf(" ** Triangles created by batch update = %ld ", update_triangles);
-    printf(" ... should be equal %ld ==", (new_triangles - triangles)); 
-    printf("(new %ld - old %ld)\n", new_triangles, triangles);
+    double update_triangles = dyntc.getTriangleCount();
+    printf(" ** Triangles created by batch update = %f ", update_triangles);
+    printf(" ... must be equal %f ==", (new_triangles - triangles)); 
+    printf("(new %f - old %f)\n", new_triangles, triangles);
     EXPECT_EQ(update_triangles, (new_triangles - triangles)); // for wiki-Vote.txt
 
-        
+    t_score = dyntc.getTriangleScores();
+    assert(t_score.size() == G.numberOfNodes());
+    t_t = 0;
+    std::cout << " [ ";
+    for (node u = 0; u < G.upperNodeIdBound(); u++) {
+            t_t += t_score[u];
+            std::cout << t_score[u] << " ";
+    }
+    std::cout << " ] " << std::endl;
+    std::cout << " t_t  = " << t_t << std::endl;
+
+    EXPECT_EQ(t_t, update_triangles);
 }        
         
 
 
+
+TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
+
+/* Graph: 
+7 - 2 
+ \ / (\) 
+   1(-) 3
+  /\(\) (/)
+6   5 - 4
+* edges in () correspond to updates (deletion).
+*/
+    int n = 7;
+    Graph G(n);
+
+    G.addEdge(0, 1);
+    G.addEdge(0, 4);
+    G.addEdge(0, 5);
+    G.addEdge(0, 6);
+    G.addEdge(1, 6);
+    G.addEdge(3, 4);
+    G.addEdge(0, 2);
+    G.addEdge(0, 3);
+    G.addEdge(3, 2);
+    G.addEdge(2, 1);
+
+    
+    INFO(" ** Original G (n, m) = (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
+    DynTriangleCounting dyntc(G);
+    dyntc.run();
+    double triangles = dyntc.getTriangleCount();
+    INFO("** Triangles in G = ", triangles, ".");
+    EXPECT_EQ(4, triangles);
+    
+    std::vector<GraphEvent> deletion;
+    deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 0, 2));
+    deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 0, 3));
+    deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 3, 2));
+    deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 2, 1));
+    
+
+    dyntc.reset(G, false);
+    assert(!dyntc.Insertion());
+    dyntc.edgeDeletion(deletion);
+    assert(dyntc.checkSorted());
+    
+    dyntc.updateBatch(deletion);
+    double update_triangles = dyntc.getTriangleCount();
+    printf(" ** Triangles deleted by batch update = %f ", update_triangles);
+    EXPECT_EQ(1, (triangles - update_triangles)); // for wiki-Vote.txt
+
+        
+}        
+
+
+
+
+        
 
 TEST_F(GlobalGTest, testDynTriangleCounting) {
 
@@ -211,7 +291,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         dyntc.run();
         timer.stop();
         
-        count triangles = dyntc.getTriangleCount();
+        double triangles = dyntc.getTriangleCount();
         INFO("** triangles = ", triangles, " in ", timer.elapsedMicroseconds() / 1e6, " secs.");
         EXPECT_EQ(608389, triangles); // for wiki-Vote.txt
         
@@ -252,7 +332,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         dyntc.reset(G, false);
         dyntc.run();
         timer.stop();       
-        count new_triangles = dyntc.getTriangleCount();
+        double new_triangles = dyntc.getTriangleCount();
         INFO("** New triangles = ", new_triangles, " in ", timer.elapsedMicroseconds() / 1e6, " secs.");
         EXPECT_LE(new_triangles, triangles);
         // TODO: make sure sorting is done only once. Check member functions run() and updateBatch() 
@@ -262,8 +342,8 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         if (!dyntc.Insertion())
                 WARN("** Update test is made on insertion mode!!");
         
-        count total_update_triangles = 0;
-        count total_update_triangles_ = 0;
+        double total_update_triangles = 0;
+        double total_update_triangles_ = 0;
         for(unsigned i = 0; i < numBatches; ++i) {
                 assert(i < deletions.size());
                 timer.start();
@@ -282,11 +362,11 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         }
 
         total_update_triangles = dyntc.getTriangleCount();
-        printf(" ** Triangles created by batch update = %ld ", total_update_triangles);
+        printf(" ** Triangles created by batch update = %f ", total_update_triangles);
         
 	// Let's compare
-	printf(" == %ld  == %ld ", total_update_triangles_, triangles);
-	printf("old %ld, new %ld\n", triangles, new_triangles);
+	printf(" == %f  == %f ", total_update_triangles_, triangles);
+	printf("old %f, new %f\n", triangles, new_triangles);
         EXPECT_EQ(total_update_triangles, total_update_triangles_); // for wiki-Vote.txt
         EXPECT_EQ(total_update_triangles, triangles - new_triangles); // for wiki-Vote.txt
 
