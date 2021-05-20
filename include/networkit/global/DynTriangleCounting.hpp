@@ -102,8 +102,10 @@ public:
 
         
 private:
-        count intersection(node u, node v, const std::vector<node> & u_adj, count u_deg);
 
+        count bsearch_intersection( node u, node v, const std::vector<node> & u_adj, count u_deg);
+        count sorted_intersection( node u, const std::vector<node> & u_adj, count u_deg,
+                                   node v,const std::vector<node> & v_adj, count v_deg, double m);
         
         count countTriangleN1O2(const Graph & G, double m);
         count countTriangleN2O1(const Graph & G, double m);
@@ -123,7 +125,7 @@ private:
 };
 
         // form stringer 
-        count DynTriangleCounting::intersection(node u, node v, const std::vector<node> & u_adj, count u_deg) {
+        count DynTriangleCounting::bsearch_intersection(node u, node v, const std::vector<node> & u_adj, count u_deg) {
         count t = 0;
         // parallel?
         G->forEdgesOf(v, [&](node, node w) {
@@ -178,7 +180,7 @@ private:
                                                     }
                                                     G->forEdgesOf(s, [&](node, node t) {
                                                                              if ( t != s ) {
-                                                                                     c += intersection(s, t, edges[s], s_deg);
+                                                                                     c += bsearch_intersection(s, t, edges[s], s_deg);
                                                                              }
                                                                      });
                                                     TrianglesPerNode[s] = c;
@@ -231,6 +233,34 @@ private:
         }
 
 
+        // form stringer 
+        count DynTriangleCounting::sorted_intersection(node u, const std::vector<node> & u_adj, count u_deg,
+                                                       node v, const std::vector<node> & v_adj, count v_deg, double m) {
+                count triangles = 0;
+                index i = 0, j = 0;
+                assert(u_adj.size() <= u_deg);
+                assert(v_adj.size() <= v_deg);
+                
+                while( (i < u_deg) && (j < v_deg) ) {
+                        int comp;
+                        comp = u_adj[i] - v_adj[j];
+                        triangles += (comp == 0);
+                        if (comp == 0) {
+#pragma omp atomic
+                                TrianglesPerNode[u_adj[i]] += m;
+                        }
+                        i += (comp <= 0);
+                        j += (comp >= 0);
+                }
+#pragma omp atomic
+                TrianglesPerNode[u] += m * triangles;
+#pragma omp atomic
+                TrianglesPerNode[v] += m * triangles;
+                return triangles;
+        }
+
+
+        
 
         count DynTriangleCounting::countTriangleN1O2(const Graph &B, double m) {
                 count total =  0;
