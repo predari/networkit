@@ -110,21 +110,15 @@ TEST_F(GlobalGTest, testToyGraphTwo) {
         
 
 TEST_F(GlobalGTest, testTriangleCounting) {
-        // METISGraphReader reader;
-        // Graph G = reader.read("../input/PGPgiantcompo.graph");
         SNAPGraphReader reader;
         Graph G = reader.read("../input/wiki-Vote.txt");
         
-        // Graph G = reader.read("../input/celegans_metabolic.graph");
-        // count n = G.upperNodeIdBound();
-
         Aux::Timer timer;
         
         TriangleCounting tc(G);
         INFO("Running TriangleCounting. ");
         timer.start();
         tc.run_seq();
-        //tc.run_par();
         timer.stop();
         
         count triangles = tc.getTriangleCount()/6;
@@ -138,12 +132,13 @@ TEST_F(GlobalGTest, testTriangleCounting) {
 
 TEST_F(GlobalGTest, testToyDynTriangleCounting) {
 
-/* Graph:
+/* Graph: 
 7 - 2 
  \ / (\) 
    1(-) 3
   /\(\) (/)
 6   5 - 4
+* edges in () correspond to updates.
 */
     int n = 7;
     Graph G(n);
@@ -154,17 +149,14 @@ TEST_F(GlobalGTest, testToyDynTriangleCounting) {
     G.addEdge(0, 6);
     G.addEdge(1, 6);
     G.addEdge(3, 4);
-    DEBUG(" ** Original G (n, m) = (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
+    INFO(" ** Original G (n, m) = (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
 
     DynTriangleCounting dyntc(G);
-    DEBUG(" ** Counting triangles in original graph (static algo).");
     dyntc.run();
     count triangles = dyntc.getTriangleCount();
-    INFO("** triangles = ", triangles, ".");
-    EXPECT_EQ(1, triangles); // for wiki-Vote.txt
+    INFO("** Triangles in G = ", triangles, ".");
+    EXPECT_EQ(1, triangles);
     
-    // make one batch with edge in paranthesis (see figure)
-    DEBUG(" ** Creating edge addition batch. ");
     std::vector<GraphEvent> addition;
     addition.push_back(GraphEvent(GraphEvent::EDGE_ADDITION, 0, 2));
     addition.push_back(GraphEvent(GraphEvent::EDGE_ADDITION, 0, 3));
@@ -174,23 +166,22 @@ TEST_F(GlobalGTest, testToyDynTriangleCounting) {
     G.addEdge(0,3);
     G.addEdge(3,2);
     G.addEdge(2,1);
-    DEBUG(" ** Updated-Addition G (n, m) = (" ,G.numberOfNodes() , ", " , G.numberOfEdges() , ")");    
-    DEBUG(" ** Counting triangles in new graph (static algo). ");
+    INFO(" ** Updated G (n, m) = (" ,G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
     dyntc.reset(G, true);
     dyntc.run();
     count new_triangles = dyntc.getTriangleCount();
-    INFO("** New triangles = ", new_triangles, ".");
+    INFO("** Triangles in updated G = ", new_triangles, ".");
     EXPECT_GE(new_triangles, triangles);
 
     G.removeEdge(0,2);
     G.removeEdge(0,3);
     G.removeEdge(3,2);
     G.removeEdge(2,1);
-    DEBUG(" ** Updated-Removal G (n, m) = (" ,G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
+    
+    INFO(" ** Running dynamic algorithm on original G (n, m) = (" ,G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
 
     dyntc.reset(G, true);
     assert(dyntc.Insertion());
-
     dyntc.edgeInsertion(addition);
     assert(dyntc.checkSorted());
     
