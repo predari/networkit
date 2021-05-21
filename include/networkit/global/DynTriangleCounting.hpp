@@ -122,10 +122,10 @@ private:
         count countTriangleN2O1(const Graph & G, double m);
         count countTriangleN3(const Graph & G, double m);
 
-        count IcountTriangleN1O2(const Graph & G, double m);
-        count IcountTriangleN2O1(const Graph & G, double m);
-        count IcountTriangleN3(const Graph & G, double m);
-
+        count countTrianglesType1(const Graph &ugraph, double m);
+        count countTrianglesType2(const Graph &ugraph, double m);
+        count countTrianglesType3(const Graph &ugraph, double m);
+        void countUpdateTriangles(const Graph &ugraph);
 
 
         Graph *G;
@@ -222,9 +222,9 @@ private:
                         std::cout << "TriCnt : INSERTION - ORIGINAL COUNT =  " << t_t << std::endl;
                         
                         
-                        S1 = IcountTriangleN1O2(B, 1.0);
-                        S2 = IcountTriangleN2O1(B, -1.0);
-                        S3 = IcountTriangleN3(B, 1.0);
+                        S1 = countTrianglesType1(B, 1.0);
+                        S2 = countTrianglesType2(B, -1.0);
+                        S3 = countTrianglesType3(B, 1.0);
                         std::cout << "TriCnt : FINAL COUNT (S1-S2+S3) = (" << S1 << "-" << S2 << "+" << S3 << ") = " << (S1-S2+S3) << std::endl;
                         t_t = t_t + (S1-S2+S3);
                         
@@ -234,9 +234,9 @@ private:
                         if (!t_t)
                                 std::cout << " Initial total triangle count is reset to zero! \n Use static algorithm on original graph via run() to compute total triangle count before deletion!" << std::endl;
                         assert(!insertion);
-                        S1 = IcountTriangleN1O2(B, -1);
-                        S2 = IcountTriangleN2O1(B, -1);
-                        S3 = IcountTriangleN3(B, -1);
+                        //S1 = IcountTriangleN1O2(B, -1);
+                        //S2 = IcountTriangleN2O1(B, -1);
+                        //S3 = IcountTriangleN3(B, -1);
                         t_t = (S1+S2+S3);
                 }
         }
@@ -269,7 +269,192 @@ private:
         }
 
 
+
+
+
+
+
+
+        void DynTriangleCounting::countUpdateTriangles(const Graph &ugraph) {
+                int mtype1, mtype2, mtype3;
+                // setting multiplicative parameters for each type of triangle and each mode: insertion/deletion
+                if (insertion) {
+                        mtype1 = 1;
+                        mtype2 = -1;
+                        mtype3 = 1;
+                        std::cout << "TriCnt : UPDATE TO INSERT - PREVIOUS COUNT =  " << t_t << std::endl;
+                }
+                else {
+                        mtype1 = mtype2 = mtype3 = -1;
+                        std::cout << "TriCnt : UPDATE TO DELETE - PREVIOUS COUNT =  " << t_t << std::endl;
+                        if (!t_t) return;
+                }
+                // create local copies and reduced degrees for G
+                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
+                std::vector<node> reduced_degree(G->upperNodeIdBound(), 0);
+                G->parallelForNodes([&](node u) {
+                                            edges[u].reserve(G->degree(u));
+                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
+                                                                     if (v < u) {
+                                                                             edges[u].emplace_back(v);
+                                                                             reduced_degree[u]++;        
+                                                                     }
+                                                             });
+                                    });
+                // create local copies and reduced degrees for update graph ugraph
+                std::vector<std::vector<node> > edges2(ugraph.upperNodeIdBound());
+                std::vector<node> reduced_degree2(ugraph.upperNodeIdBound(), 0);
+                ugraph.parallelForNodes([&](node u) {
+                                                edges2[u].reserve(ugraph.degree(u));
+                                                ugraph.forEdgesOf(u, [&](node, node v, edgeid) {
+                                                                             if (v < u) {
+                                                                                     edges2[u].emplace_back(v);
+                                                                                     reduced_degree2[u]++;
+                                                                             }
+                                                                     });
+                                        });
+                
+                ugraph.parallelForEdges([&](node u, node v) {
+                                                // work on updated graph only
+                                                sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), mtype1); 
+                                                // work on updated and update graph
+                                                sorted_intersection(u, edges[u], reduced_degree[u],
+                                                                    v, edges2[v], ugraph.degree(v), mtype2); 
+                                                sorted_intersection(v, edges[v], reduced_degree[v],
+                                                                    u, edges2[u], ugraph.degree(u), mtype2);
+                                                // work on update graph only
+                                                sorted_intersection(u, edges2[u], reduced_degree2[u],
+                                                                    v, edges2[v], reduced_degree2[v], mtype3);
+                                        });    
+                
+                
+        }
+
         
+        
+
+        count DynTriangleCounting::countTrianglesType1(const Graph &ugraph, double m) {
+                count total =  0;
+                // following is repetiton compared to countTriangleN2O1 and countTriangleN3
+                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
+                G->parallelForNodes([&](node u) {
+                                            edges[u].reserve(G->degree(u));
+                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
+                                                                     edges[u].emplace_back(v);
+                                                             });
+                                    });
+                
+                ugraph.parallelForEdges([&](node u, node v) {
+                                           total += sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), m);
+                                           
+                                   });
+                return total;
+        }
+
+        count DynTriangleCounting::countTrianglesType2(const Graph &ugraph, double m) {
+                count total =  0;
+                std::vector<node> reduced_degree(G->upperNodeIdBound(), 0);
+                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
+                G->parallelForNodes([&](node u) {
+                                            edges[u].reserve(G->degree(u));
+                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
+                                                                     if (v < u) {
+                                                                             edges[u].emplace_back(v);
+                                                                             reduced_degree[u]++;        
+                                                                     }
+                                                             });
+                                    });
+                
+                std::vector<std::vector<node> > edges2(ugraph.upperNodeIdBound());
+                ugraph.parallelForNodes([&](node u) {
+                                           edges2[u].reserve(ugraph.degree(u));
+                                           ugraph.forEdgesOf(u, [&](node, node v, edgeid) {
+                                                                   edges2[u].emplace_back(v);
+                                                           });
+                                   });
+
+                ugraph.parallelForEdges([&](node u, node v) {                           
+                                                  count d_u = reduced_degree[u];
+                                                  total += sorted_intersection(u, edges[u], d_u, v, edges2[v], ugraph.degree(v), m); 
+                                                  count d_v = reduced_degree[v];
+                                                  total += sorted_intersection(v, edges[v], d_v, u, edges2[u], ugraph.degree(u), m); 
+
+                                          });
+                return total;
+        }
+
+                count DynTriangleCounting::countTrianglesType3(const Graph &ugraph, double m) {
+                count total =  0;
+                std::vector<std::vector<node> > edges2(ugraph.upperNodeIdBound());
+                std::vector<node> reduced_degree(ugraph.upperNodeIdBound(), 0);
+                
+                ugraph.parallelForNodes([&](node u) {
+                                                  edges2[u].reserve(ugraph.degree(u));
+                                                  ugraph.forEdgesOf(u, [&](node, node v, edgeid) {
+                                                                                 if (v < u) {
+                                                                                         edges2[u].emplace_back(v);
+                                                                                         reduced_degree[u]++;
+                                                                                 }
+                                                                         });
+                                          });
+                
+                ugraph.parallelForEdges([&](node u, node v) {
+                                           
+                                           count d_u = reduced_degree[u];
+                                           count d_v = reduced_degree[v];
+                                           total += sorted_intersection(u, edges2[u], d_u, v, edges2[v], d_v, m);
+                                   });
+                return total;
+        }
+
+
+
+        
+
+        
+
+//         count DynTriangleCounting::countTriangleN1O2(const Graph &B, double m) {
+//                 count total =  0;
+//                 // following is repetiton compared to countTriangleN2O1 and countTriangleN3
+//                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
+//                 G->parallelForNodes([&](node u) {
+//                                             edges[u].reserve(G->degree(u));
+//                                             G->forEdgesOf(u, [&](node, node v, edgeid) {
+//                                                                      edges[u].emplace_back(v);
+//                                                              });
+//                                     });
+                
+//                 B.parallelForEdges([&](node u, node v) {
+//                                            count triangles = 0;
+//                                            count d_u = G->degree(u); 
+//                                            count d_v = G->degree(v); 
+//                                            index i = 0, j = 0;
+//                                            std::cout << "TC N1O2 : Edge ( " << u << ", " << v  << " )"  << std::endl;
+//                                            while( (i < d_u) && (j < d_v) ) {
+//                                                    int comp;
+//                                                    comp = edges[u][i] - edges[v][j];
+//                                                    triangles += (comp == 0);
+//                                                    if (comp == 0) {
+// #pragma omp atomic
+//                                                            TrianglesPerNode[edges[u][i]] += m;
+//                                                            std::cout << "TC N1O2 : triangle count = " << triangles << "( due to common neighbor " << edges[u][i] << ")" << std::endl;
+//                                                    }
+//                                                    i += (comp <= 0);
+//                                                    j += (comp >= 0);
+//                                            }
+// #pragma omp atomic
+//                                            TrianglesPerNode[u] += m * triangles;
+// #pragma omp atomic
+//                                            TrianglesPerNode[v] += m * triangles;
+
+//                                            total += 3* triangles; 
+//                                    });
+//                 std::cout << "TC N1O2 : total = " << total << std::endl;
+                
+//                 return total;
+//         }
+
+
 
         count DynTriangleCounting::countTriangleN1O2(const Graph &B, double m) {
                 count total =  0;
@@ -564,136 +749,6 @@ private:
 //                                    });
 //                 return total;
 //         }
-
-
-
-
-
-
-        
-
-        count DynTriangleCounting::IcountTriangleN1O2(const Graph &B, double m) {
-                count total =  0;
-                // following is repetiton compared to countTriangleN2O1 and countTriangleN3
-                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-                G->parallelForNodes([&](node u) {
-                                            edges[u].reserve(G->degree(u));
-                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                     edges[u].emplace_back(v);
-                                                             });
-                                    });
-                
-                B.parallelForEdges([&](node u, node v) {
-                                           total += sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), m); 
-                                   });
-                return total;
-        }
-
-        count DynTriangleCounting::IcountTriangleN2O1(const Graph &B, double m) {
-                count total =  0;
-                std::vector<node> reduced_degree(G->upperNodeIdBound(), 0);
-                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-                G->parallelForNodes([&](node u) {
-                                            edges[u].reserve(G->degree(u));
-                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                     if (v < u) {
-                                                                             edges[u].emplace_back(v);
-                                                                             reduced_degree[u]++;        
-                                                                     }
-                                                             });
-                                    });
-                
-                std::vector<std::vector<node> > edges2(B.upperNodeIdBound());
-                B.parallelForNodes([&](node u) {
-                                           edges2[u].reserve(B.degree(u));
-                                           B.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                   edges2[u].emplace_back(v);
-                                                           });
-                                   });
-
-                B.parallelForEdges([&](node u, node v) {                           
-                                           count d_u = reduced_degree[u];
-                                           total += sorted_intersection(u, edges[u], d_u, v, edges2[v], B.degree(v), m); 
-                                           count d_v = reduced_degree[v];
-                                           total += sorted_intersection(v, edges[v], d_v, u, edges2[u], B.degree(u), m); 
-
-                                   });
-                return total;
-        }
-
-                count DynTriangleCounting::IcountTriangleN3(const Graph &B, double m) {
-                count total =  0;
-                std::vector<std::vector<node> > edges2(B.upperNodeIdBound());
-                std::vector<node> reduced_degree(B.upperNodeIdBound(), 0);
-                
-                B.parallelForNodes([&](node u) {
-                                           edges2[u].reserve(B.degree(u));
-                                           B.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                   if (v < u) {
-                                                                   edges2[u].emplace_back(v);
-                                                                   reduced_degree[u]++;
-                                                                   }
-                                                           });
-                                   });
-                
-                B.parallelForEdges([&](node u, node v) {
-                                           
-                                           count d_u = reduced_degree[u];
-                                           count d_v = reduced_degree[v];
-                                           total += sorted_intersection(u, edges2[u], d_u, v, edges2[v], d_v, m);
-                                   });
-                return total;
-        }
-
-
-
-        
-
-        
-
-//         count DynTriangleCounting::countTriangleN1O2(const Graph &B, double m) {
-//                 count total =  0;
-//                 // following is repetiton compared to countTriangleN2O1 and countTriangleN3
-//                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-//                 G->parallelForNodes([&](node u) {
-//                                             edges[u].reserve(G->degree(u));
-//                                             G->forEdgesOf(u, [&](node, node v, edgeid) {
-//                                                                      edges[u].emplace_back(v);
-//                                                              });
-//                                     });
-                
-//                 B.parallelForEdges([&](node u, node v) {
-//                                            count triangles = 0;
-//                                            count d_u = G->degree(u); 
-//                                            count d_v = G->degree(v); 
-//                                            index i = 0, j = 0;
-//                                            std::cout << "TC N1O2 : Edge ( " << u << ", " << v  << " )"  << std::endl;
-//                                            while( (i < d_u) && (j < d_v) ) {
-//                                                    int comp;
-//                                                    comp = edges[u][i] - edges[v][j];
-//                                                    triangles += (comp == 0);
-//                                                    if (comp == 0) {
-// #pragma omp atomic
-//                                                            TrianglesPerNode[edges[u][i]] += m;
-//                                                            std::cout << "TC N1O2 : triangle count = " << triangles << "( due to common neighbor " << edges[u][i] << ")" << std::endl;
-//                                                    }
-//                                                    i += (comp <= 0);
-//                                                    j += (comp >= 0);
-//                                            }
-// #pragma omp atomic
-//                                            TrianglesPerNode[u] += m * triangles;
-// #pragma omp atomic
-//                                            TrianglesPerNode[v] += m * triangles;
-
-//                                            total += 3* triangles; 
-//                                    });
-//                 std::cout << "TC N1O2 : total = " << total << std::endl;
-                
-//                 return total;
-//         }
-
-
-
 
 
         
