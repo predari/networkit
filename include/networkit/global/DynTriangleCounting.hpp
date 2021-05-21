@@ -96,6 +96,14 @@ public:
                 assureFinished();
                 return t_t;
         }
+        count computeTriangleCount() {
+                t_t = G->parallelSumForNodes([&](node u) {
+                                                     return TrianglesPerNode[u];
+                                             });
+                
+                t_t = t_t/3;
+        }
+        
 
         std::vector<double> getTriangleScores() {
                 assureFinished();
@@ -191,12 +199,8 @@ private:
                                                                      });
                                                     TrianglesPerNode[s] = c/2;
                                             });
-                t_t = G->parallelSumForNodes([&](node u) {
-                                                     return TrianglesPerNode[u];
-                                             });
-                
-                t_t = t_t/3 ;
                 hasRun = true;
+                computeTriangleCount();
         }
 
         // update routine.
@@ -213,8 +217,10 @@ private:
                 B.sortEdges();
                 
                 assert(checkSorted(&B));
-                std::cout << "TriCnt : INSERTION - ORIGINAL COUNT =  " << t_t << std::endl;
+
                 if(insertion) {
+                        std::cout << "TriCnt : INSERTION - ORIGINAL COUNT =  " << t_t << std::endl;
+                        
                         
                         S1 = IcountTriangleN1O2(B, 1.0);
                         S2 = IcountTriangleN2O1(B, -1.0);
