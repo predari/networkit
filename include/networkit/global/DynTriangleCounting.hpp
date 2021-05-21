@@ -204,45 +204,51 @@ private:
         }
 
         // update routine.
-        // Always store the current values of TrianglePerNode after each run/update.
         void DynTriangleCounting::updateBatch(const std::vector<GraphEvent>& batch) {
-                S1 = S2 = S3 = 0;
-                // TODO: repetition (see edgeInsertionSorted)
-                // construct G'
-                count n = G->upperNodeIdBound();
-                Graph B = Graph(n);
-                for(auto e : batch){
-                        B.addEdge(e.u, e.v);
-                }
-                B.sortEdges();
                 
-                assert(checkSorted(&B));
+                count n = G->upperNodeIdBound();
+                Graph ugraph = Graph(n);
+                for(auto e : batch){
+                        ugraph.addEdge(e.u, e.v);
+                }
+                ugraph.sortEdges();
+                assert(checkSorted(&ugraph));
 
-                if(insertion) {
-                        std::cout << "TriCnt : INSERTION - ORIGINAL COUNT =  " << t_t << std::endl;
-                        
-                        
-                        S1 = countTrianglesType1(B, 1.0);
-                        S2 = countTrianglesType2(B, -1.0);
-                        S3 = countTrianglesType3(B, 1.0);
-                        std::cout << "TriCnt : FINAL COUNT (S1-S2+S3) = (" << S1 << "-" << S2 << "+" << S3 << ") = " << (S1-S2+S3) << std::endl;
-                        t_t = t_t + (S1-S2+S3);
+                double mtype1, mtype2, mtype3;
+                int total = 0;
+                int S1 = 0;
+                int S2 = 0;
+                int S3 = 0;
+                // setting multiplicative parameters for each type of triangle and each mode: insertion/deletion
+                if (insertion) {
+                        mtype1 = 1.0;
+                        mtype2 = -1.0;
+                        mtype3 = 1.0;
+                        std::cout << "TriCnt : UPDATE TO INSERT - PREVIOUS COUNT =  " << t_t << std::endl;
+
+                        countTrianglesType1(ugraph, mtype1);
+                        countTrianglesType2(ugraph, mtype2);
+                        countTrianglesType3(ugraph, mtype3);
+                        //t_t += (S1-S2+S3);
                         
                 }
                 else {
-                        std::cout << "TriCnt : DELETION - ORIGINAL COUNT =  " << t_t << std::endl;
-                        if (!t_t)
-                                std::cout << " Initial total triangle count is reset to zero! \n Use static algorithm on original graph via run() to compute total triangle count before deletion!" << std::endl;
-                        assert(!insertion);
-                        //S1 = IcountTriangleN1O2(B, -1);
-                        //S2 = IcountTriangleN2O1(B, -1);
-                        //S3 = IcountTriangleN3(B, -1);
-                        t_t = (S1+S2+S3);
+                        mtype1 = mtype2 = mtype3 = -1.0;
+                        std::cout << "TriCnt : UPDATE TO DELETE - PREVIOUS COUNT =  " << t_t << std::endl;
+                        if (!t_t) return;
+                        countTrianglesType1(ugraph, mtype1);
+                        countTrianglesType2(ugraph, mtype2);
+                        countTrianglesType3(ugraph, mtype3);
+                        // t_t = S1+S2+S3
                 }
+
+
+                //countUpdateTriangles(ugraph);
+                computeTriangleCount();
+                std::cout << "TriCnt : FINAL COUNT =  " << t_t << std::endl;
         }
 
 
-        // form stringer 
         count DynTriangleCounting::sorted_intersection(node u, const std::vector<node> & u_adj, count u_deg,
                                                        node v, const std::vector<node> & v_adj, count v_deg, double m) {
                 count triangles = 0;
@@ -276,18 +282,24 @@ private:
 
 
         void DynTriangleCounting::countUpdateTriangles(const Graph &ugraph) {
-                int mtype1, mtype2, mtype3;
+                double mtype1, mtype2, mtype3;
+                int total = 0;
+                int S1 = 0;
+                int S2 = 0;
+                int S3 = 0;
                 // setting multiplicative parameters for each type of triangle and each mode: insertion/deletion
                 if (insertion) {
-                        mtype1 = 1;
-                        mtype2 = -1;
-                        mtype3 = 1;
+                        mtype1 = 1.0;
+                        mtype2 = -1.0;
+                        mtype3 = 1.0;
                         std::cout << "TriCnt : UPDATE TO INSERT - PREVIOUS COUNT =  " << t_t << std::endl;
+                        //t_t += (S1-S2+S3);
                 }
                 else {
-                        mtype1 = mtype2 = mtype3 = -1;
+                        mtype1 = mtype2 = mtype3 = -1.0;
                         std::cout << "TriCnt : UPDATE TO DELETE - PREVIOUS COUNT =  " << t_t << std::endl;
                         if (!t_t) return;
+                        // t_t = S1+S2+S3
                 }
                 // create local copies and reduced degrees for G
                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
@@ -316,18 +328,24 @@ private:
                 
                 ugraph.parallelForEdges([&](node u, node v) {
                                                 // work on updated graph only
-                                                sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), mtype1); 
+                                                S1 = sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), mtype1); 
                                                 // work on updated and update graph
-                                                sorted_intersection(u, edges[u], reduced_degree[u],
+                                                S2 = sorted_intersection(u, edges[u], reduced_degree[u],
                                                                     v, edges2[v], ugraph.degree(v), mtype2); 
-                                                sorted_intersection(v, edges[v], reduced_degree[v],
+                                                S2 = S2 + sorted_intersection(v, edges[v], reduced_degree[v],
                                                                     u, edges2[u], ugraph.degree(u), mtype2);
                                                 // work on update graph only
-                                                sorted_intersection(u, edges2[u], reduced_degree2[u],
+                                                S3 = sorted_intersection(u, edges2[u], reduced_degree2[u],
                                                                     v, edges2[v], reduced_degree2[v], mtype3);
                                         });    
-                
-                
+
+                if (insertion) {
+                        t_t += S1-S2+S3;
+                        std::cout << "TriCnt : FINAL =  " << t_t << std::endl;
+                } else {
+                        t_t = S1+S2+S3;
+                        std::cout << "TriCnt : FINAL =  " << t_t << std::endl;
+                } 
         }
 
         
