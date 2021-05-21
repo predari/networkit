@@ -167,7 +167,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     G.addEdge(3,2);
     G.addEdge(2,1);
     INFO(" ** Updated G (n, m) = (" ,G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-    dyntc.reset(G, true);
+    dyntc.reset(G);
     dyntc.run();
     double new_triangles = dyntc.getTriangleCount();
     INFO("** Triangles in updated G = ", new_triangles, ".");
@@ -192,8 +192,8 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     
     INFO(" ** Running dynamic algorithm on original G (n, m) = (" ,G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
 
-    dyntc.reset(G, true);
-    assert(dyntc.Insertion());
+    dyntc.reset(G);
+
     dyntc.edgeInsertion(addition);
     assert(dyntc.checkSorted());
     /* ****************************************************************** */
@@ -274,8 +274,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 2, 1));
     
 
-    dyntc.reset(G, false);
-    assert(!dyntc.Insertion());
+    dyntc.reset(G);
     dyntc.edgeDeletion(deletion);
     assert(dyntc.checkSorted());
     
@@ -356,7 +355,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         
         DEBUG(" ** Counting triangles in new graph (static algo). ");
         timer.start();
-        dyntc.reset(G, false);
+        dyntc.reset(G);
         dyntc.run();
         timer.stop();       
         double new_triangles = dyntc.getTriangleCount();
@@ -365,9 +364,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         // TODO: make sure sorting is done only once. Check member functions run() and updateBatch() 
         G.sortEdges();
 
-        dyntc.reset(G, true);
-        if (!dyntc.Insertion())
-                WARN("** Update test is made on insertion mode!!");
+        dyntc.reset(G);
         
         double total_update_triangles = 0;
         double total_update_triangles_ = 0;

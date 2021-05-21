@@ -38,37 +38,28 @@ public:
    * diameter
    */
         
-        DynTriangleCounting(Graph &G, bool insertion = true)
-                : G(&G), insertion(insertion),
-                  TrianglesPerNode(G.upperNodeIdBound(), 0.0),
-                  t_t(0.0), S1(0), S2(0), S3(0) {
+        DynTriangleCounting(Graph &G)
+                : G(&G), TrianglesPerNode(G.upperNodeIdBound(), 0.0), t_t(0.0) {
                 std::cout << " TC: set up for insertion (by default). " << std::endl;
         }
         
         void run() override;
-        
-        /* insertion function works as a reset for insert/deletion. */
-        void reset(Graph &G, bool insert = true) {
-                insertion = insert;
-                if (insertion) std::cout << " TC : reset for insertion. " << std::endl;
-                else std::cout << " TC : reset for deletion. " << std::endl;
+
+        // do I really need to reset with an input graph G (like now) or do my functions
+        // change my object directly this->G ? TODO: Make sure after fixing edgeInsertionSorted
+        void reset(Graph &G) {
                 std::fill(TrianglesPerNode.begin(), TrianglesPerNode.end(), 0.0);
                 TrianglesPerNode.resize(G.upperNodeIdBound(), 0.0);
-                // TODO: check, clear only for insertion. Not for removal
-                //if (insertion) t_t = 0;
                 t_t = 0.0;
-                S1 = S2 = S3 = 0; 
         }
+        
+
         // tmp version for inserting edges and sorting afterwards
         void edgeInsertion(const std::vector<GraphEvent> &batch);
         void edgeDeletion(const std::vector<GraphEvent> &batch);
         void edgeInsertionSorted(const std::vector<GraphEvent> &batch);
         void edgeDeletionSorted(const std::vector<GraphEvent> &batch);
         
-        
-        bool Insertion() {
-                return insertion;
-        }
         /**
          * Updates the list of k nodes with the highest closeness in G
          * after a batch of updates.
@@ -118,21 +109,18 @@ private:
         count sorted_intersection( node u, const std::vector<node> & u_adj, count u_deg,
                                    node v,const std::vector<node> & v_adj, count v_deg, double m);
         
-        count countTriangleN1O2(const Graph & G, double m);
-        count countTriangleN2O1(const Graph & G, double m);
-        count countTriangleN3(const Graph & G, double m);
 
         count countTrianglesType1(const Graph &ugraph, double m);
         count countTrianglesType2(const Graph &ugraph, double m);
         count countTrianglesType3(const Graph &ugraph, double m);
-        void countUpdateTriangles(const Graph &ugraph);
+        void countUpdateTriangles(const Graph &ugraph, bool insertion);
 
 
         Graph *G;
-        bool insertion;
+        // current triangle count per node
         std::vector<double> TrianglesPerNode;
+        // current total number of triangles
         double t_t;
-        count S1, S2, S3;
         
 
         
@@ -167,12 +155,12 @@ private:
         
 
         void DynTriangleCounting::run() {
-                
-                std::cout << "TriCnt : RUN " << std::endl;
+
+                std::cout << "TriCnt : RUNNING STATIC ALGO. " << std::endl;
                 std::fill(TrianglesPerNode.begin(),  TrianglesPerNode.end(), 0.0);
-                // resize in case of change in graph size
                 TrianglesPerNode.resize(G->upperNodeIdBound(), 0.0);
-        
+                t_t = 0;
+                
                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
                 /* sort edge lists */
                 // TODO: remove it from here. Assume that graph input is sorted
@@ -205,17 +193,27 @@ private:
 
 
         void DynTriangleCounting::updateBatch(const std::vector<GraphEvent>& batch) {
+                // check that all events of the batch are of the same type.
+                bool insert = true;
+                if (batch[0].type == GraphEvent::EDGE_REMOVAL)
+                        insert = false;
+                else if (batch[0].type != GraphEvent::EDGE_ADDITION)
+                        throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
                 
                 // create update graph
                 Graph ugraph = Graph(G->upperNodeIdBound()); // update graph same size as original one
                 for(auto e : batch){
+                        if (e.type != GraphEvent::EDGE_ADDITION && e.type != GraphEvent::EDGE_REMOVAL) {
+                                throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
+                        }
+                        if (e.type == GraphEvent::EDGE_ADDITION)
                         ugraph.addEdge(e.u, e.v);
                 }
                 ugraph.sortEdges();
 
                 double mtype1, mtype2, mtype3;
                 // setting multiplicative parameters for each type of triangle and each mode: insertion/deletion
-                if (insertion) {
+                if (insert) {
                         mtype1 = 1.0;
                         mtype2 = -1.0;
                         mtype3 = 1.0;
@@ -233,11 +231,11 @@ private:
                         countTrianglesType1(ugraph, mtype1);
                         countTrianglesType2(ugraph, mtype2);
                         countTrianglesType3(ugraph, mtype3);
-                        // t_t = S1+S2+S3
+                        t_t = S1+S2+S3
                 }
                 
-                //countUpdateTriangles(ugraph);
-                computeTriangleCount();
+                countUpdateTriangles(ugraph);
+                //computeTriangleCount();
                 std::cout << "TriCnt : FINAL COUNT =  " << t_t << std::endl;
         }
 
@@ -274,7 +272,7 @@ private:
 
 
 
-        void DynTriangleCounting::countUpdateTriangles(const Graph &ugraph) {
+        void DynTriangleCounting::countUpdateTriangles(const Graph &ugraph, bool insertion) {
                 double mtype1, mtype2, mtype3;
                 int total = 0;
                 int S1 = 0;
@@ -420,352 +418,6 @@ private:
 
 
         
-
-        
-
-//         count DynTriangleCounting::countTriangleN1O2(const Graph &B, double m) {
-//                 count total =  0;
-//                 // following is repetiton compared to countTriangleN2O1 and countTriangleN3
-//                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-//                 G->parallelForNodes([&](node u) {
-//                                             edges[u].reserve(G->degree(u));
-//                                             G->forEdgesOf(u, [&](node, node v, edgeid) {
-//                                                                      edges[u].emplace_back(v);
-//                                                              });
-//                                     });
-                
-//                 B.parallelForEdges([&](node u, node v) {
-//                                            count triangles = 0;
-//                                            count d_u = G->degree(u); 
-//                                            count d_v = G->degree(v); 
-//                                            index i = 0, j = 0;
-//                                            std::cout << "TC N1O2 : Edge ( " << u << ", " << v  << " )"  << std::endl;
-//                                            while( (i < d_u) && (j < d_v) ) {
-//                                                    int comp;
-//                                                    comp = edges[u][i] - edges[v][j];
-//                                                    triangles += (comp == 0);
-//                                                    if (comp == 0) {
-// #pragma omp atomic
-//                                                            TrianglesPerNode[edges[u][i]] += m;
-//                                                            std::cout << "TC N1O2 : triangle count = " << triangles << "( due to common neighbor " << edges[u][i] << ")" << std::endl;
-//                                                    }
-//                                                    i += (comp <= 0);
-//                                                    j += (comp >= 0);
-//                                            }
-// #pragma omp atomic
-//                                            TrianglesPerNode[u] += m * triangles;
-// #pragma omp atomic
-//                                            TrianglesPerNode[v] += m * triangles;
-
-//                                            total += 3* triangles; 
-//                                    });
-//                 std::cout << "TC N1O2 : total = " << total << std::endl;
-                
-//                 return total;
-//         }
-
-
-
-        count DynTriangleCounting::countTriangleN1O2(const Graph &B, double m) {
-                count total =  0;
-                std::cout << "TriCnt : TYPE DELTA1 TRIANGLES " << std::endl;
-                std::cout << "TriCnt : PARAMETER M = " << m  << std::endl;
-                
-                // following is repetiton compared to countTriangleN2O1 and countTriangleN3
-                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-                G->parallelForNodes([&](node u) {
-                                            edges[u].reserve(G->degree(u));
-                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                     edges[u].emplace_back(v);
-                                                             });
-                                    });
-
-                
-                B.parallelForEdges([&](node u, node v) {
-                                           count triangles = 0;
-                                           count d_u = G->degree(u); 
-                                           count d_v = G->degree(v); 
-                                           index i = 0, j = 0;
-                                           //std::cout << "TC N1O2 : Edge ( " << u << ", " << v  << " )"  << std::endl;
-                                           while( (i < d_u) && (j < d_v) ) {
-                                                   int comp;
-                                                   comp = edges[u][i] - edges[v][j];
-                                                   triangles += (comp == 0);
-                                                   if (comp == 0) {
-#pragma omp atomic
-                                                           TrianglesPerNode[edges[u][i]] +=  m;
-                                                           //std::cout << "TC N1O2 : triangle count = " << triangles << "( due to common neighbor w = " << edges[u][i] << ") -- TrianglesPerNode[w] = " << TrianglesPerNode[edges[u][i]]  << " m = " << m << std::endl;
-                                                           
-                                                   }
-                                                   i += (comp <= 0);
-                                                   j += (comp >= 0);
-                                           }
-#pragma omp atomic
-                                           TrianglesPerNode[u] += m * triangles;
-#pragma omp atomic
-                                           TrianglesPerNode[v] += m * triangles;
-
-                                           total += triangles; 
-                                   });
-                return total;
-        }
-
-
-
-        count DynTriangleCounting::countTriangleN2O1(const Graph &B, double m) {
-                count total =  0;
-
-                std::cout << "TriCnt : TYPE DELTA2 TRIANGLES " << std::endl;
-                std::cout << "TriCnt : PARAMETER M = " << m  << std::endl;
-                
-                
-                std::vector<node> reduced_degree(G->upperNodeIdBound(), 0);
-                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-                G->parallelForNodes([&](node u) {
-                                            edges[u].reserve(G->degree(u));
-                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                     if (v < u) {
-                                                                             edges[u].emplace_back(v);
-                                                                             reduced_degree[u]++;        
-                                                                     }
-                                                             });
-                                    });
-                
-                std::vector<std::vector<node> > edges2(B.upperNodeIdBound());
-                B.parallelForNodes([&](node u) {
-                                           edges2[u].reserve(B.degree(u));
-                                           B.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                   edges2[u].emplace_back(v);
-                                                           });
-                                   });
-                
-                B.parallelForEdges([&](node x, node y) {
-
-                                           
-                                           node u = x;
-                                           node v = y;
-                                           // std::cout << "TC N2O1 : Edge ( " << u << ", " << v  << " )" << " degrees ( "
-                                           //           << G->degree(u) << ", " << B.degree(v)  << " )"
-                                           //           << " reduced_degree for G-HAT ( " << reduced_degree[u] << "  )"<< std::endl;
-                                           count triangles = 0;
-
-                                           count d_u = reduced_degree[u];
-                                           count d_v = B.degree(v); 
-                                           index i = 0, j = 0;
-                                           
-                                           while( (i < d_u) && (j < d_v) ) {
-                                                   int comp;                                                   
-                                                   comp = edges[u][i] - edges2[v][j];
-                                                   triangles += (comp == 0);
-                                                   if (comp == 0) {
-#pragma omp atomic
-                                                           TrianglesPerNode[edges[u][i]] += m;
-                                                           //std::cout << "TC N1O2 : triangle count = " << triangles << "( due to common neighbor " << edges[u][i] << ")" << std::endl;
-                                                   }
-                                                           // atomicSub(TrianglesPerNode + edges[u][i], 1);
-                                                   i += (comp <= 0);
-                                                   j += (comp >= 0);
-                                           }
-#pragma omp atomic
-                                           TrianglesPerNode[u] += m * triangles;
-#pragma omp atomic
-                                           TrianglesPerNode[v] += m * triangles;
-                                           //atomicAdd(TrianglesPerNode + u, m * triangles);
-                                           //atomicAdd(TrianglesPerNode + v, m * triangles);
-                                           total +=   triangles; 
-                                           //std::cout << "TC N2O1 : (one direction -->) total = " << total << std::endl;
-
-                                           u = y;
-                                           v = x;
-                                           // std::cout << "TC N2O1 : Edge ( " << u << ", " << v  << " )" << " degrees ( "
-                                           //           << G->degree(u) << ", " << B.degree(v)  << " )"
-                                           //           << " reduced_degree for G-HAT ( " << reduced_degree[u] << "  )"<< std::endl;
-                                           triangles = 0;
-                                           
-                                           d_u = reduced_degree[u];
-                                           d_v = B.degree(v); 
-                                           i = 0, j = 0;
-                                           
-                                           while( (i < d_u) && (j < d_v) ) {
-                                                   int comp;                                                   
-                                                   comp = edges[u][i] - edges2[v][j];
-                                                   triangles += (comp == 0);
-                                                   if (comp == 0) {
-#pragma omp atomic
-                                                           TrianglesPerNode[edges[u][i]] += m;
-                                                           //std::cout << "TC N1O2 : triangle count = " << triangles << "( due to common neighbor " << edges[u][i] << ")" << std::endl;
-                                                   }
-                                                           // atomicSub(TrianglesPerNode + edges[u][i], 1);
-                                                   i += (comp <= 0);
-                                                   j += (comp >= 0);
-                                           }
-#pragma omp atomic
-                                           TrianglesPerNode[u] += m * triangles;
-#pragma omp atomic
-                                           TrianglesPerNode[v] += m * triangles;
-                                           //atomicAdd(TrianglesPerNode + u, m * triangles);
-                                           //atomicAdd(TrianglesPerNode + v, m * triangles);
-                                           total +=  triangles; 
-
-
-                                           //std::cout << "TC N2O1 : (other direction <--) total = " << total << std::endl;
-
-
-                                   });
-                return total;
-        }
-
-
-        
-
-        
-//         count DynTriangleCounting::countTriangleN2O1(const Graph &B, double m) {
-//                 count total =  0;
-//                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-//                 G->parallelForNodes([&](node u) {
-//                                             edges[u].reserve(G->degree(u));
-//                                             G->forEdgesOf(u, [&](node, node v, edgeid) {
-//                                                                      edges[u].emplace_back(v);
-//                                                              });
-//                                     });
-                
-//                 std::vector<std::vector<node> > edges2(B.upperNodeIdBound());
-//                 B.parallelForNodes([&](node u) {
-//                                            edges2[u].reserve(B.degree(u));
-//                                            B.forEdgesOf(u, [&](node, node v, edgeid) {
-//                                                                    edges2[u].emplace_back(v);
-//                                                            });
-//                                    });
-                
-//                 B.parallelForEdges([&](node u, node v) {
-//                                            count triangles = 0;
-//                                            count d_u = G->degree(u); // G or B ?
-//                                            count d_v = B.degree(v); // G or B ?
-//                                            index i = 0, j = 0;
-                                           
-//                                            while( (i < d_u) && (j < d_v) ) {
-//                                                    int comp;                                                   
-//                                                    comp = edges[u][i] - edges2[v][j];
-//                                                    triangles += (comp == 0);
-//                                                    if (comp == 0)
-// #pragma omp atomic
-//                                                            TrianglesPerNode[edges[u][i]] += m;
-//                                                            // atomicSub(TrianglesPerNode + edges[u][i], 1);
-//                                                    i += (comp <= 0);
-//                                                    j += (comp >= 0);
-//                                            }
-// #pragma omp atomic
-//                                            TrianglesPerNode[u] += m * triangles;
-// #pragma omp atomic
-//                                            TrianglesPerNode[v] += m * triangles;
-//                                            //atomicAdd(TrianglesPerNode + u, m * triangles);
-//                                            //atomicAdd(TrianglesPerNode + v, m * triangles);
-//                                            total += 3* triangles; 
-//                                    });
-//                 return total;
-//         }
-
-
-
-                count DynTriangleCounting::countTriangleN3(const Graph &B, double m) {
-
-                        std::cout << "TriCnt : TYPE DELTA3 TRIANGLES " << std::endl;
-                        std::cout << "TriCnt : PARAMETER M = " << m  << std::endl;
-                        count total =  0;
-                
-                        std::vector<std::vector<node> > edges2(B.upperNodeIdBound());
-                        std::vector<node> reduced_degree(B.upperNodeIdBound(), 0);
-                        std::cout << "TC N3 : m = " << m  << std::endl;
-                        B.parallelForNodes([&](node u) {
-                                           edges2[u].reserve(B.degree(u));
-                                           B.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                   if (v < u) {
-                                                                   edges2[u].emplace_back(v);
-                                                                   reduced_degree[u]++;
-                                                                   }
-                                                           });
-                                   });
-                
-                B.parallelForEdges([&](node u, node v) {
-                                           count triangles = 0;
-                                           count d_u = reduced_degree[u];
-                                           count d_v = reduced_degree[v];
-                                           index i = 0, j = 0;
-                                           // std::cout << "TC N3 : Edge ( " << u << ", " << v  << " )" << " degrees ( "
-                                           //           << B.degree(u) << ", " << B.degree(v)  << " )"
-                                           //           << " reduced_degree for G' ( " << reduced_degree[u] << ", "
-                                           //           << reduced_degree[v] << "  )"<< std::endl;
-
-                                           
-                                           while( (i < d_u) && (j < d_v) ) {
-                                                   int comp;                                                   
-                                                   comp = edges2[u][i] - edges2[v][j];
-                                                   triangles += (comp == 0);
-                                                   if (comp == 0) {
-#pragma omp atomic
-                                                           TrianglesPerNode[edges2[u][i]] += m;
-                                                           //std::cout << "TC N3 : triangle count = " << triangles << "( due to common neighbor " << edges2[u][i] << ")" << std::endl;
-                                                   }
-                                                   i += (comp <= 0);
-                                                   j += (comp >= 0);
-                                           }
-#pragma omp atomic
-                                           TrianglesPerNode[u] += m * triangles;
-#pragma omp atomic
-                                           TrianglesPerNode[v] += m * triangles;
-                                           total +=  triangles; 
-                                   });
-                return total;
-        }
-
-
-
-        
-     
-        
-
-        
-//         count DynTriangleCounting::countTriangleN3(const Graph &B, double m) {
-//                 count total =  0;
-//                 std::vector<std::vector<node> > edges2(B.upperNodeIdBound());
-//                 B.parallelForNodes([&](node u) {
-//                                            edges2[u].reserve(B.degree(u));
-//                                            B.forEdgesOf(u, [&](node, node v, edgeid) {
-//                                                                    edges2[u].emplace_back(v);
-//                                                            });
-//                                    });
-                
-//                 B.parallelForEdges([&](node u, node v) {
-//                                            count triangles = 0;
-//                                            count d_u = B.degree(u); // G or B ?
-//                                            count d_v = B.degree(v); // G or B ?
-//                                            index i = 0, j = 0;
-                                           
-//                                            while( (i < d_u) && (j < d_v) ) {
-//                                                    int comp;                                                   
-//                                                    comp = edges2[u][i] - edges2[v][j];
-//                                                    triangles += (comp == 0);
-//                                                    if (comp == 0)
-// #pragma omp atomic
-//                                                            TrianglesPerNode[edges2[u][i]] += m;
-//                                                    i += (comp <= 0);
-//                                                    j += (comp >= 0);
-//                                            }
-// #pragma omp atomic
-//                                            TrianglesPerNode[u] += m * triangles;
-// #pragma omp atomic
-//                                            TrianglesPerNode[v] += m * triangles;
-//                                            total += 3* triangles; 
-//                                    });
-//                 return total;
-//         }
-
-
-        
-
-
-        
-
         
 
 
