@@ -206,7 +206,6 @@ private:
                         if (e.type != GraphEvent::EDGE_ADDITION && e.type != GraphEvent::EDGE_REMOVAL) {
                                 throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
                         }
-                        if (e.type == GraphEvent::EDGE_ADDITION)
                         ugraph.addEdge(e.u, e.v);
                 }
                 ugraph.sortEdges();
@@ -221,21 +220,35 @@ private:
                         countTrianglesType1(ugraph, mtype1);
                         countTrianglesType2(ugraph, mtype2);
                         countTrianglesType3(ugraph, mtype3);
+                        std::cout << " [ ";
+                        for (node u = 0; u < G->upperNodeIdBound(); u++) {
+                                std::cout << TrianglesPerNode[u] << " ";
+                        }
+                        std::cout << " ] " << std::endl;
+
                         //t_t += (S1-S2+S3);
                         
                 }
                 else {
                         mtype1 = mtype2 = mtype3 = -1.0;
                         std::cout << "TriCnt : UPDATE TO DELETE - PREVIOUS COUNT =  " << t_t << std::endl;
+                        std::cout << "TriCnt : UPDATE TO DELETE - PREVIOUS COUNT =  " << t_t << std::endl;
+                        std::cout << "TriCnt : m1 =  " << mtype1 << " m2 = " << mtype2 << "m3 = " << mtype3  << std::endl;
                         if (!t_t) return;
-                        countTrianglesType1(ugraph, mtype1);
-                        countTrianglesType2(ugraph, mtype2);
-                        countTrianglesType3(ugraph, mtype3);
-                        t_t = S1+S2+S3
+                        count S1 =  countTrianglesType1(ugraph, mtype1);
+                        count S2 = countTrianglesType2(ugraph, mtype2);
+                        count S3 = countTrianglesType3(ugraph, mtype3);
+                        //t_t = S1+S2+S3
+                        //std::cout << " total =  " << S1+S2+S3  << std::endl;
+                        // std::cout << " [ ";
+                        // for (node u = 0; u < G->upperNodeIdBound(); u++) {
+                        //         std::cout << TrianglesPerNode[u] << " ";
+                        // }
+                        // std::cout << " ] " << std::endl;
                 }
                 
-                countUpdateTriangles(ugraph);
-                //computeTriangleCount();
+                //countUpdateTriangles(ugraph,true);
+                computeTriangleCount();
                 std::cout << "TriCnt : FINAL COUNT =  " << t_t << std::endl;
         }
 
@@ -324,7 +337,7 @@ private:
                                                                     v, edges2[v], ugraph.degree(v), mtype2); 
                                                 S2 = S2 + sorted_intersection(v, edges[v], reduced_degree[v],
                                                                     u, edges2[u], ugraph.degree(u), mtype2);
-                                                // work on update graph only
+                                                 // work on update graph only
                                                 S3 = sorted_intersection(u, edges2[u], reduced_degree2[u],
                                                                     v, edges2[v], reduced_degree2[v], mtype3);
                                         });    
@@ -353,7 +366,8 @@ private:
                                     });
                 
                 ugraph.parallelForEdges([&](node u, node v) {
-                                           total += sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), m);
+                                                //std::cout << " T1 e: ( " << u << ", " << v << " )" << std::endl;
+                                                total += sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), m);
                                            
                                    });
                 return total;
@@ -381,7 +395,8 @@ private:
                                                            });
                                    });
 
-                ugraph.parallelForEdges([&](node u, node v) {                           
+                ugraph.parallelForEdges([&](node u, node v) {
+                                                //std::cout << " T2 e: ( " << u << ", " << v << " )" << std::endl;
                                                   count d_u = reduced_degree[u];
                                                   total += sorted_intersection(u, edges[u], d_u, v, edges2[v], ugraph.degree(v), m); 
                                                   count d_v = reduced_degree[v];
@@ -407,7 +422,7 @@ private:
                                           });
                 
                 ugraph.parallelForEdges([&](node u, node v) {
-                                           
+                                                //std::cout << " T3 e: ( " << u << ", " << v << " )" << std::endl;
                                            count d_u = reduced_degree[u];
                                            count d_v = reduced_degree[v];
                                            total += sorted_intersection(u, edges2[u], d_u, v, edges2[v], d_v, m);
