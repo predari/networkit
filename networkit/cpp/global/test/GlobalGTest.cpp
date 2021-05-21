@@ -183,7 +183,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     }
     std::cout << " ] " << std::endl;
     std::cout << " t_t  = " << t_t << std::endl;
-    EXPECT_EQ(t_t/6, new_triangles);
+    EXPECT_EQ(t_t/3, new_triangles);
     
     G.removeEdge(0,2);
     G.removeEdge(0,3);
@@ -196,7 +196,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     assert(dyntc.Insertion());
     dyntc.edgeInsertion(addition);
     assert(dyntc.checkSorted());
-    
+    /* ****************************************************************** */
     dyntc.updateBatch(addition);
     double update_triangles = dyntc.getTriangleCount();
     printf(" ** Triangles created by batch update = %f ", update_triangles);
@@ -215,7 +215,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     std::cout << " ] " << std::endl;
     std::cout << " t_t  = " << t_t << std::endl;
 
-    EXPECT_EQ(t_t, update_triangles);
+    EXPECT_EQ(t_t/3, update_triangles);
 }        
         
 
@@ -224,11 +224,11 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
 TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
 
 /* Graph: 
-7 - 2 
+6 - 1 
  \ / (\) 
-   1(-) 3
+   0(-) 2
   /\(\) (/)
-6   5 - 4
+5   4 - 3
 * edges in () correspond to updates (deletion).
 */
     int n = 7;
@@ -239,7 +239,8 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     G.addEdge(0, 5);
     G.addEdge(0, 6);
     G.addEdge(1, 6);
-    G.addEdge(3, 4);
+    
+    G.addEdge(3, 4); 
     G.addEdge(0, 2);
     G.addEdge(0, 3);
     G.addEdge(3, 2);
@@ -252,6 +253,19 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     double triangles = dyntc.getTriangleCount();
     INFO("** Triangles in G = ", triangles, ".");
     EXPECT_EQ(4, triangles);
+
+    std::vector<double> t_score = dyntc.getTriangleScores();
+    assert(t_score.size() == G.numberOfNodes());
+    double t_t = 0;
+    std::cout << " [ ";
+    for (node u = 0; u < G.upperNodeIdBound(); u++) {
+            t_t += t_score[u];
+            std::cout << t_score[u] << " ";
+    }
+    std::cout << " ] " << std::endl;
+    std::cout << " t_t  = " << t_t << std::endl;
+    EXPECT_EQ(t_t/3, triangles);
+   
     
     std::vector<GraphEvent> deletion;
     deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 0, 2));
@@ -267,9 +281,22 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     
     dyntc.updateBatch(deletion);
     double update_triangles = dyntc.getTriangleCount();
-    printf(" ** Triangles deleted by batch update = %f ", update_triangles);
-    EXPECT_EQ(1, (triangles - update_triangles)); // for wiki-Vote.txt
+    printf(" ** Triangles deleted by batch update = %f \n", update_triangles);
+    EXPECT_EQ(1, (triangles - update_triangles)); 
 
+    t_score = dyntc.getTriangleScores();
+    assert(t_score.size() == G.numberOfNodes());
+    t_t = 0;
+    std::cout << " [ ";
+    for (node u = 0; u < G.upperNodeIdBound(); u++) {
+            t_t += t_score[u];
+            std::cout << t_score[u] << " ";
+    }
+    std::cout << " ] " << std::endl;
+    std::cout << " t_t  = " << t_t << std::endl;
+    
+    EXPECT_EQ(t_t/3, -update_triangles);
+    
         
 }        
 
@@ -365,11 +392,27 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         printf(" ** Triangles created by batch update = %f ", total_update_triangles);
         
 	// Let's compare
-	printf(" == %f  == %f ", total_update_triangles_, triangles);
+	printf(" == %f  == ", total_update_triangles_);
 	printf("old %f, new %f\n", triangles, new_triangles);
         EXPECT_EQ(total_update_triangles, total_update_triangles_); // for wiki-Vote.txt
+
+
+
+
+        
         EXPECT_EQ(total_update_triangles, triangles - new_triangles); // for wiki-Vote.txt
 
+        std::vector<double> t_score = dyntc.getTriangleScores();
+        assert(t_score.size() == G.numberOfNodes());
+        double t_t = 0;
+
+        for (node u = 0; u < G.upperNodeIdBound(); u++) {
+                t_t += t_score[u];
+        }
+        std::cout << " t_t  = " << t_t/3 << std::endl;
+        EXPECT_EQ(t_t/3, triangles - new_triangles);
+        EXPECT_EQ(t_t/3, total_update_triangles);
+        
         
 }        
 
