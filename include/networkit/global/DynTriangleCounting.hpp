@@ -203,29 +203,23 @@ private:
                 computeTriangleCount();
         }
 
-        // update routine.
+
         void DynTriangleCounting::updateBatch(const std::vector<GraphEvent>& batch) {
                 
-                count n = G->upperNodeIdBound();
-                Graph ugraph = Graph(n);
+                // create update graph
+                Graph ugraph = Graph(G->upperNodeIdBound()); // update graph same size as original one
                 for(auto e : batch){
                         ugraph.addEdge(e.u, e.v);
                 }
                 ugraph.sortEdges();
-                assert(checkSorted(&ugraph));
 
                 double mtype1, mtype2, mtype3;
-                int total = 0;
-                int S1 = 0;
-                int S2 = 0;
-                int S3 = 0;
                 // setting multiplicative parameters for each type of triangle and each mode: insertion/deletion
                 if (insertion) {
                         mtype1 = 1.0;
                         mtype2 = -1.0;
                         mtype3 = 1.0;
                         std::cout << "TriCnt : UPDATE TO INSERT - PREVIOUS COUNT =  " << t_t << std::endl;
-
                         countTrianglesType1(ugraph, mtype1);
                         countTrianglesType2(ugraph, mtype2);
                         countTrianglesType3(ugraph, mtype3);
@@ -241,8 +235,7 @@ private:
                         countTrianglesType3(ugraph, mtype3);
                         // t_t = S1+S2+S3
                 }
-
-
+                
                 //countUpdateTriangles(ugraph);
                 computeTriangleCount();
                 std::cout << "TriCnt : FINAL COUNT =  " << t_t << std::endl;
@@ -293,13 +286,12 @@ private:
                         mtype2 = -1.0;
                         mtype3 = 1.0;
                         std::cout << "TriCnt : UPDATE TO INSERT - PREVIOUS COUNT =  " << t_t << std::endl;
-                        //t_t += (S1-S2+S3);
                 }
                 else {
                         mtype1 = mtype2 = mtype3 = -1.0;
                         std::cout << "TriCnt : UPDATE TO DELETE - PREVIOUS COUNT =  " << t_t << std::endl;
                         if (!t_t) return;
-                        // t_t = S1+S2+S3
+
                 }
                 // create local copies and reduced degrees for G
                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
