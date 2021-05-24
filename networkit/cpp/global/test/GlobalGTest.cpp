@@ -198,6 +198,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     assert(dyntc.checkSorted());
     /* ****************************************************************** */
     dyntc.updateBatch(addition);
+    // in insert: getTriangleCount returns the update result ( not!!! final triangle counting)!!
     double update_triangles = dyntc.getTriangleCount();
     printf(" ** Triangles created by batch update = %f ", update_triangles);
     printf(" ... must be equal %f ==", (new_triangles - triangles)); 
@@ -248,7 +249,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
 
     
     INFO(" ** Original G (n, m) = (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-    DynTriangleCounting dyntc(G);
+    DynTriangleCounting dyntc(G, false);
     dyntc.run();
     double triangles = dyntc.getTriangleCount();
     INFO("** Triangles in G = ", triangles, ".");
@@ -274,15 +275,16 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 2, 1));
     
 
-    dyntc.reset(G, false);
+    //dyntc.reset(G, false);
     assert(!dyntc.Insertion());
     dyntc.edgeDeletion(deletion);
     assert(dyntc.checkSorted());
     
     dyntc.updateBatch(deletion);
+    // in delete: getTriangleCount returns the final result (final triangle counting)!!
     double update_triangles = dyntc.getTriangleCount();
-    printf(" ** Triangles deleted by batch update = %f \n", update_triangles);
-    EXPECT_EQ(1, (triangles - update_triangles)); 
+    printf(" ** Triangles final deleted by batch update = %f \n", update_triangles);
+    EXPECT_EQ(1, update_triangles); 
 
     t_score = dyntc.getTriangleScores();
     assert(t_score.size() == G.numberOfNodes());
@@ -295,7 +297,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     std::cout << " ] " << std::endl;
     std::cout << " t_t  = " << t_t << std::endl;
     
-    EXPECT_EQ(t_t/3, -update_triangles);
+    EXPECT_EQ(t_t/3, update_triangles);
     
         
 }        
