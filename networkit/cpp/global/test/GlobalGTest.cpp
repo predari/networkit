@@ -295,28 +295,28 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
 	// Make multiple batches of removed edges
         count numBatches = 5;
         count numEdges = 100;
-        //count dupEdges = 10;
+        count dupEdges = 10;
         //count totalEdges = numEdges + dupEdges;
         std::vector<std::vector<GraphEvent>> addition(numBatches);
         
         for (count i = 0; i < numBatches; i++) {
-                for (count j = 0; j < numEdges; j++) {
-                        
+                
+                for (count j = 0; j < numEdges; j++) {                        
                         node u = G.upperNodeIdBound();
                         node v = G.upperNodeIdBound();
                         do {
                                 u = GraphTools::randomNode(G);
                                 v = GraphTools::randomNode(G);
                         } while (!G.hasEdge(u, v) || u == v);
-                        GraphEvent edgeDeletion(GraphEvent::EDGE_ADDITION, u, v);
-                        addition[i].push_back(edgeDeletion);
+                        GraphEvent edgeI(GraphEvent::EDGE_ADDITION, u, v);
+                        addition[i].push_back(edgeI);
                         G.removeEdge(u, v);
                 }
                 // // Add duplicates from beginning of batch
                 // for(unsigned j = 0; j < dupEdges; ++j) {
-                //         assert(j < addition.size());
+                //         assert(j < numEdges);
                 //         auto dupEvent = addition[i][j];
-                //         addition[i].push_back(GraphEvent::EDGE_REMOVAL, dupEvent.u, dupEvent.v);
+                //         addition[i].push_back(dupEvent);
                 // }            
         }
         
@@ -325,7 +325,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         dyntc.run();
         timer.stop();       
         double static_triangles = dyntc.getTriangleCount();
-        INFO(" ** ***** Triangles = ", static_triangles, "in ", timer.elapsedMicroseconds() / 1e6, " secs.");
+        INFO(" ** ***** Triangles = ", static_triangles, " in ", timer.elapsedMicroseconds() / 1e6, " secs.");
         double starting_time = timer.elapsedMicroseconds() / 1e6;
 
         EXPECT_LE(static_triangles, triangles);
@@ -359,8 +359,8 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         INFO(" ** ***** Triangles  = ", final_triangles, " = (", static_triangles, " + ",
              total_update_triangles, ")." );
         
-        INFO(" ** STATIC_TIME   = ", static_time );
-        INFO(" ** DYNAMIC_TIME  = ", total_update_time + starting_time );
+        INFO(" ** STATIC_TIME   =  ", static_time );
+        INFO(" ** DYNAMIC_TIME  =  ", total_update_time + starting_time );
         
         std::vector<double> t_score = dyntc.getTriangleScores();
         assert(t_score.size() == G.numberOfNodes());
