@@ -96,6 +96,13 @@ public:
                 assureFinished();
                 return t_t;
         }
+
+        count getUpdateTriangleCount() {
+                assureFinished();
+                if (!o_t) return 0; 
+                return abs(t_t-o_t);
+        }
+        
         count computeTriangleCount() {
                 t_t = G->parallelSumForNodes([&](node u) {
                                                      return TrianglesPerNode[u];
