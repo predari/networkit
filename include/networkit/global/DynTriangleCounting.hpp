@@ -1,9 +1,8 @@
 /*
- * DynKatzCentrality.hpp
+ * DynTriangleCounting.hpp
  *
- *  Created on: April 2018
- *      Author: Alexander van der Grinten
- *      based on code by Elisabetta Bergamini
+ *  Created on: May 2021
+ *      Author: Predari Maria
  */
 
 #ifndef NETWORKIT_CENTRALITY_DYN_TRIANGLE_COUNTING_HPP_
@@ -11,7 +10,6 @@
 
 #include <omp.h>
 
-#include <networkit/base/DynAlgorithm.hpp>
 #include <networkit/dynamics/GraphEvent.hpp>
 #include <networkit/base/Algorithm.hpp>
 #include <networkit/base/DynAlgorithm.hpp>
@@ -27,31 +25,22 @@ class DynTriangleCounting : public Algorithm, public DynAlgorithm {
 
 public:
   /**
-   * Constructs the DynTopHarmonicCloseness class. This class implements dynamic
-   * algorithms for harmonic top-k closeness centrality. The implementation
-   * is based on the static algorithms by Borassi et al. (complex networks)
-   * and Bergamini et al. (large-diameter networks).
+   * Constructs the DynTriangleCounting class. This class implements 
+   * algorithms for computing the total number of triangles in the graph 
+   * (via triangle counts per vertex ). 
+   * The implementation is based on the static algorithm in stinger and the 
+   * dynamic implementation is taken from Oded Green et al. 
    *
    * @param G The graph.
-   * @param k The number of top nodes.
-   * @param useBFSbound Whether to use the algorithm for networks with large
-   * diameter
    */
         
         DynTriangleCounting(Graph &G)
-                : G(&G), TrianglesPerNode(G.upperNodeIdBound(), 0.0), t_t(0.0) {
-                std::cout << " TC: set up for insertion (by default). " << std::endl;
+                : G(&G), TrianglesPerNode(G.upperNodeIdBound(), 0.0),
+                  t_t(0.0), o_t(0.0) {
         }
         
         void run() override;
 
-        // do I really need to reset with an input graph G (like now) or do my functions
-        // change my object directly this->G ? TODO: Make sure after fixing edgeInsertionSorted
-        void reset(Graph &G) {
-                std::fill(TrianglesPerNode.begin(), TrianglesPerNode.end(), 0.0);
-                TrianglesPerNode.resize(G.upperNodeIdBound(), 0.0);
-                t_t = 0.0;
-        }
         
 
         // tmp version for inserting edges and sorting afterwards
@@ -61,8 +50,7 @@ public:
         void edgeDeletionSorted(const std::vector<GraphEvent> &batch);
         
         /**
-         * Updates the list of k nodes with the highest closeness in G
-         * after a batch of updates.
+         * Updates the total number of triangles in G after a batch of updates.
          *
          * @param batch A vector of edge modification events.
          */
@@ -70,7 +58,7 @@ public:
 
 
         /**
-         * Updates the list of the k nodes with the highest closeness in G.
+         * Updates the total number of triangles in G.
          *
          * @param event The edge modification event.
          */
@@ -87,6 +75,12 @@ public:
                 assureFinished();
                 return t_t;
         }
+
+        count getNewTriangles() {
+                assureFinished();
+                return abs(t_t-o_t);
+        }
+        
         count computeTriangleCount() {
                 t_t = G->parallelSumForNodes([&](node u) {
                                                      return TrianglesPerNode[u];
@@ -121,13 +115,14 @@ private:
         std::vector<double> TrianglesPerNode;
         // current total number of triangles
         double t_t;
-        
+        // old total number of triangles
+        double o_t;
 
         
 
 };
 
-        // form stringer 
+        // from stringer 
         count DynTriangleCounting::bsearch_intersection(node u, node v, const std::vector<node> & u_adj, count u_deg) {
         count t = 0;
         // parallel?
@@ -155,8 +150,6 @@ private:
         
 
         void DynTriangleCounting::run() {
-
-                std::cout << "TriCnt : RUNNING STATIC ALGO. " << std::endl;
                 std::fill(TrianglesPerNode.begin(),  TrianglesPerNode.end(), 0.0);
                 TrianglesPerNode.resize(G->upperNodeIdBound(), 0.0);
                 t_t = 0;
@@ -189,67 +182,63 @@ private:
                                             });
                 hasRun = true;
                 computeTriangleCount();
+                o_t = t_t;
         }
 
 
         void DynTriangleCounting::updateBatch(const std::vector<GraphEvent>& batch) {
-                // check that all events of the batch are of the same type.
-                bool insert = true;
+                // setting old count equal to current
+                o_t = t_t;
+                bool insertion = true;
                 if (batch[0].type == GraphEvent::EDGE_REMOVAL)
-                        insert = false;
+                        insertion = false;
                 else if (batch[0].type != GraphEvent::EDGE_ADDITION)
                         throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
+                
                 
                 // create update graph
                 Graph ugraph = Graph(G->upperNodeIdBound()); // update graph same size as original one
                 for(auto e : batch){
+                        // check that all events of the batch are of the same type.
+                        if (e.type == GraphEvent::EDGE_ADDITION && !insertion) {
+                                throw std::runtime_error("All Events of an insert batch should be of type EDGE_ADDITION.");
+                        } else if (e.type == GraphEvent::EDGE_REMOVAL && insertion) {
+                                throw std::runtime_error("All Events of a remove batch should be of type EDGE_REMOVAL.");
+
+                        }
                         if (e.type != GraphEvent::EDGE_ADDITION && e.type != GraphEvent::EDGE_REMOVAL) {
                                 throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
                         }
+
+
                         ugraph.addEdge(e.u, e.v);
                 }
                 ugraph.sortEdges();
 
                 double mtype1, mtype2, mtype3;
                 // setting multiplicative parameters for each type of triangle and each mode: insertion/deletion
-                if (insert) {
+                if (insertion) {
                         mtype1 = 1.0;
                         mtype2 = -1.0;
                         mtype3 = 1.0;
-                        std::cout << "TriCnt : UPDATE TO INSERT - PREVIOUS COUNT =  " << t_t << std::endl;
                         countTrianglesType1(ugraph, mtype1);
                         countTrianglesType2(ugraph, mtype2);
                         countTrianglesType3(ugraph, mtype3);
-                        std::cout << " [ ";
-                        for (node u = 0; u < G->upperNodeIdBound(); u++) {
-                                std::cout << TrianglesPerNode[u] << " ";
-                        }
-                        std::cout << " ] " << std::endl;
-
                         //t_t += (S1-S2+S3);
                         
                 }
                 else {
                         mtype1 = mtype2 = mtype3 = -1.0;
-                        std::cout << "TriCnt : UPDATE TO DELETE - PREVIOUS COUNT =  " << t_t << std::endl;
-                        std::cout << "TriCnt : UPDATE TO DELETE - PREVIOUS COUNT =  " << t_t << std::endl;
-                        std::cout << "TriCnt : m1 =  " << mtype1 << " m2 = " << mtype2 << "m3 = " << mtype3  << std::endl;
                         if (!t_t) return;
                         count S1 =  countTrianglesType1(ugraph, mtype1);
                         count S2 = countTrianglesType2(ugraph, mtype2);
                         count S3 = countTrianglesType3(ugraph, mtype3);
                         //t_t = S1+S2+S3
                         //std::cout << " total =  " << S1+S2+S3  << std::endl;
-                        // std::cout << " [ ";
-                        // for (node u = 0; u < G->upperNodeIdBound(); u++) {
-                        //         std::cout << TrianglesPerNode[u] << " ";
-                        // }
-                        // std::cout << " ] " << std::endl;
                 }
                 
                 //countUpdateTriangles(ugraph,true);
                 computeTriangleCount();
-                std::cout << "TriCnt : FINAL COUNT =  " << t_t << std::endl;
         }
 
 
@@ -356,7 +345,7 @@ private:
 
         count DynTriangleCounting::countTrianglesType1(const Graph &ugraph, double m) {
                 count total =  0;
-                // following is repetiton compared to countTriangleN2O1 and countTriangleN3
+                // following is repetiton compared to countTriangleType2 and countTriangleType3
                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
                 G->parallelForNodes([&](node u) {
                                             edges[u].reserve(G->degree(u));
@@ -432,8 +421,7 @@ private:
 
 
 
-        
-        
+                
 
 
         void DynTriangleCounting::edgeInsertionSorted(const std::vector<GraphEvent>& batch) {
