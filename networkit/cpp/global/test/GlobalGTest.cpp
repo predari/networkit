@@ -342,7 +342,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
                                 v = GraphTools::randomNode(G);
                         } while (!G.hasEdge(u, v) || u == v);
                         //DEBUG(" ** Edge (", u, ", ", v, ") # ", j , " to be removed. ");       
-                        GraphEvent edgeDeletion(GraphEvent::EDGE_REMOVAL, u, v);
+                        GraphEvent edgeDeletion(GraphEvent::EDGE_ADDITION, u, v);
                         deletions[i].push_back(edgeDeletion);
                         G.removeEdge(u, v);
                 }

@@ -132,6 +132,7 @@ private:
         bool insertion;
         std::vector<double> TrianglesPerNode;
         double t_t;
+        double o_t;
         count S1, S2, S3;
         
 
@@ -206,15 +207,37 @@ private:
 
         void DynTriangleCounting::updateBatch(const std::vector<GraphEvent>& batch) {
                 
+                bool insert = true;
+                if (batch[0].type == GraphEvent::EDGE_REMOVAL)
+                        insert = false;
+                else if (batch[0].type != GraphEvent::EDGE_ADDITION)
+                        throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
+                
+                
                 // create update graph
                 Graph ugraph = Graph(G->upperNodeIdBound()); // update graph same size as original one
                 for(auto e : batch){
+                        // check that all events of the batch are of the same type.
+                        if (e.type == GraphEvent::EDGE_ADDITION && !insert) {
+                                throw std::runtime_error("All Events of an insert batch should be of type EDGE_ADDITION.");
+                        } else if (e.type == GraphEvent::EDGE_REMOVAL && insert) {
+                                throw std::runtime_error("All Events of a remove batch should be of type EDGE_REMOVAL.");
+
+                        }
+                        if (e.type != GraphEvent::EDGE_ADDITION && e.type != GraphEvent::EDGE_REMOVAL) {
+                                throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
+                        }
+
                         ugraph.addEdge(e.u, e.v);
                 }
                 ugraph.sortEdges();
 
                 double mtype1, mtype2, mtype3;
                 // setting multiplicative parameters for each type of triangle and each mode: insertion/deletion
+               
+                if (insert != insertion)
+                        std::cout << "Insert = " << insert << "insertion = " << insertion << std::endl;
+                assert(insert == insertion);
                 if (insertion) {
                         mtype1 = 1.0;
                         mtype2 = -1.0;
