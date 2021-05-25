@@ -1,9 +1,8 @@
 /*
- * DynKatzCentrality.hpp
+ * DynTriangleCounting.hpp
  *
- *  Created on: April 2018
- *      Author: Alexander van der Grinten
- *      based on code by Elisabetta Bergamini
+ *  Created on: May 2021
+ *      Author: Predari Maria
  */
 
 #ifndef NETWORKIT_CENTRALITY_DYN_TRIANGLE_COUNTING_HPP_
@@ -11,7 +10,6 @@
 
 #include <omp.h>
 
-#include <networkit/base/DynAlgorithm.hpp>
 #include <networkit/dynamics/GraphEvent.hpp>
 #include <networkit/base/Algorithm.hpp>
 #include <networkit/base/DynAlgorithm.hpp>
@@ -27,15 +25,13 @@ class DynTriangleCounting : public Algorithm, public DynAlgorithm {
 
 public:
   /**
-   * Constructs the DynTopHarmonicCloseness class. This class implements dynamic
-   * algorithms for harmonic top-k closeness centrality. The implementation
-   * is based on the static algorithms by Borassi et al. (complex networks)
-   * and Bergamini et al. (large-diameter networks).
+   * Constructs the DynTriangleCounting class. This class implements 
+   * algorithms for computing the total number of triangles in the graph 
+   * (via triangle counts per vertex ). 
+   * The implementation is based on the static algorithm in stinger and the 
+   * dynamic implementation is taken from Oded Green et al. 
    *
    * @param G The graph.
-   * @param k The number of top nodes.
-   * @param useBFSbound Whether to use the algorithm for networks with large
-   * diameter
    */
         
         DynTriangleCounting(Graph &G)
@@ -46,18 +42,7 @@ public:
         
         void run() override;
         
-        // /* insertion function works as a reset for insert/deletion. */
-        // void reset(Graph &G, bool insert = true) {
-        //         insertion = insert;
-        //         if (insertion) std::cout << " TC : reset for insertion. " << std::endl;
-        //         else std::cout << " TC : reset for deletion. " << std::endl;
-        //         std::fill(TrianglesPerNode.begin(), TrianglesPerNode.end(), 0.0);
-        //         TrianglesPerNode.resize(G.upperNodeIdBound(), 0.0);
-        //         // TODO: check, clear only for insertion. Not for removal
-        //         //if (insertion) t_t = 0;
-        //         t_t = 0.0;
-        //         S1 = S2 = S3 = 0; 
-        // }
+
         // tmp version for inserting edges and sorting afterwards
         void edgeInsertion(const std::vector<GraphEvent> &batch);
         void edgeDeletion(const std::vector<GraphEvent> &batch);
@@ -66,7 +51,7 @@ public:
         
         
         /**
-         * Updates the list of k nodes with the highest closeness in G
+         * Updates the total number of triangles in G
          * after a batch of updates.
          *
          * @param batch A vector of edge modification events.
@@ -75,7 +60,7 @@ public:
 
 
         /**
-         * Updates the list of the k nodes with the highest closeness in G.
+         * Updates the total number of triangles in G.
          *
          * @param event The edge modification event.
          */
@@ -95,7 +80,6 @@ public:
 
         count getNewTriangles() {
                 assureFinished();
-                if (!o_t) return 0; 
                 return abs(t_t-o_t);
         }
         
@@ -143,7 +127,7 @@ private:
 
 };
 
-        // form stringer 
+        // from stringer 
         count DynTriangleCounting::bsearch_intersection(node u, node v, const std::vector<node> & u_adj, count u_deg) {
         count t = 0;
         // parallel?
@@ -172,9 +156,7 @@ private:
 
         void DynTriangleCounting::run() {
                 
-                std::cout << "TriCnt : RUN " << std::endl;
                 std::fill(TrianglesPerNode.begin(),  TrianglesPerNode.end(), 0.0);
-                // resize in case of change in graph size
                 TrianglesPerNode.resize(G->upperNodeIdBound(), 0.0);
         
                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
@@ -205,7 +187,7 @@ private:
                                             });
                 hasRun = true;
                 computeTriangleCount();
-                o_t = 0.0;
+                o_t = t_t;
         }
 
 
