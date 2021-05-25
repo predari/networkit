@@ -35,8 +35,7 @@ public:
    */
         
         DynTriangleCounting(Graph &G)
-                : G(&G), insertion(true),
-                  TrianglesPerNode(G.upperNodeIdBound(), 0.0),
+                : G(&G), TrianglesPerNode(G.upperNodeIdBound(), 0.0),
                   t_t(0.0), o_t(0.0) {
         }
         
@@ -108,11 +107,10 @@ private:
         count countTrianglesType1(const Graph &ugraph, double m);
         count countTrianglesType2(const Graph &ugraph, double m);
         count countTrianglesType3(const Graph &ugraph, double m);
-        void countUpdateTriangles(const Graph &ugraph);
+        void countUpdateTriangles(const Graph &ugraph, bool insertion);
 
 
         Graph *G;
-        bool insertion;
         std::vector<double> TrianglesPerNode;
         double t_t;
         double o_t;
@@ -190,9 +188,9 @@ private:
         void DynTriangleCounting::updateBatch(const std::vector<GraphEvent>& batch) {
                 // setting old count equal to current
                 o_t = t_t;
-                bool insert = true;
+                bool insertion = true;
                 if (batch[0].type == GraphEvent::EDGE_REMOVAL)
-                        insert = false;
+                        insertion = false;
                 else if (batch[0].type != GraphEvent::EDGE_ADDITION)
                         throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
                 
@@ -201,9 +199,9 @@ private:
                 Graph ugraph = Graph(G->upperNodeIdBound()); // update graph same size as original one
                 for(auto e : batch){
                         // check that all events of the batch are of the same type.
-                        if (e.type == GraphEvent::EDGE_ADDITION && !insert) {
+                        if (e.type == GraphEvent::EDGE_ADDITION && !insertion) {
                                 throw std::runtime_error("All Events of an insert batch should be of type EDGE_ADDITION.");
-                        } else if (e.type == GraphEvent::EDGE_REMOVAL && insert) {
+                        } else if (e.type == GraphEvent::EDGE_REMOVAL && insertion) {
                                 throw std::runtime_error("All Events of a remove batch should be of type EDGE_REMOVAL.");
 
                         }
@@ -217,8 +215,6 @@ private:
 
                 double mtype1, mtype2, mtype3;
                 // setting multiplicative parameters for each type of triangle and each mode: insertion/deletion
-                insertion = insert;
-                assert(insert == insertion);
                 if (insertion) {
                         mtype1 = 1.0;
                         mtype2 = -1.0;
@@ -275,7 +271,7 @@ private:
 
 
 
-        void DynTriangleCounting::countUpdateTriangles(const Graph &ugraph) {
+        void DynTriangleCounting::countUpdateTriangles(const Graph &ugraph, bool insertion) {
                 double mtype1, mtype2, mtype3;
                 int total = 0;
                 int S1 = 0;
