@@ -38,27 +38,26 @@ public:
    * diameter
    */
         
-        DynTriangleCounting(Graph &G, bool insertion = true)
-                : G(&G), insertion(insertion),
+        DynTriangleCounting(Graph &G)
+                : G(&G), insertion(true),
                   TrianglesPerNode(G.upperNodeIdBound(), 0.0),
-                  t_t(0.0), S1(0), S2(0), S3(0) {
-                std::cout << " TC: set up for insertion (by default). " << std::endl;
+                  t_t(0.0), o_t(0.0) {
         }
         
         void run() override;
         
-        /* insertion function works as a reset for insert/deletion. */
-        void reset(Graph &G, bool insert = true) {
-                insertion = insert;
-                if (insertion) std::cout << " TC : reset for insertion. " << std::endl;
-                else std::cout << " TC : reset for deletion. " << std::endl;
-                std::fill(TrianglesPerNode.begin(), TrianglesPerNode.end(), 0.0);
-                TrianglesPerNode.resize(G.upperNodeIdBound(), 0.0);
-                // TODO: check, clear only for insertion. Not for removal
-                //if (insertion) t_t = 0;
-                t_t = 0.0;
-                S1 = S2 = S3 = 0; 
-        }
+        // /* insertion function works as a reset for insert/deletion. */
+        // void reset(Graph &G, bool insert = true) {
+        //         insertion = insert;
+        //         if (insertion) std::cout << " TC : reset for insertion. " << std::endl;
+        //         else std::cout << " TC : reset for deletion. " << std::endl;
+        //         std::fill(TrianglesPerNode.begin(), TrianglesPerNode.end(), 0.0);
+        //         TrianglesPerNode.resize(G.upperNodeIdBound(), 0.0);
+        //         // TODO: check, clear only for insertion. Not for removal
+        //         //if (insertion) t_t = 0;
+        //         t_t = 0.0;
+        //         S1 = S2 = S3 = 0; 
+        // }
         // tmp version for inserting edges and sorting afterwards
         void edgeInsertion(const std::vector<GraphEvent> &batch);
         void edgeDeletion(const std::vector<GraphEvent> &batch);
@@ -66,9 +65,6 @@ public:
         void edgeDeletionSorted(const std::vector<GraphEvent> &batch);
         
         
-        bool Insertion() {
-                return insertion;
-        }
         /**
          * Updates the list of k nodes with the highest closeness in G
          * after a batch of updates.
@@ -97,7 +93,7 @@ public:
                 return t_t;
         }
 
-        count getUpdateTriangleCount() {
+        count getNewTriangles() {
                 assureFinished();
                 if (!o_t) return 0; 
                 return abs(t_t-o_t);
@@ -140,7 +136,7 @@ private:
         std::vector<double> TrianglesPerNode;
         double t_t;
         double o_t;
-        count S1, S2, S3;
+
         
 
         
@@ -209,11 +205,13 @@ private:
                                             });
                 hasRun = true;
                 computeTriangleCount();
+                o_t = 0.0;
         }
 
 
         void DynTriangleCounting::updateBatch(const std::vector<GraphEvent>& batch) {
-                
+                // setting old count equal to current
+                o_t = t_t;
                 bool insert = true;
                 if (batch[0].type == GraphEvent::EDGE_REMOVAL)
                         insert = false;
@@ -241,7 +239,7 @@ private:
 
                 double mtype1, mtype2, mtype3;
                 // setting multiplicative parameters for each type of triangle and each mode: insertion/deletion
-               
+                insertion = insert;
                 if (insert != insertion)
                         std::cout << "Insert = " << insert << "insertion = " << insertion << std::endl;
                 assert(insert == insertion);
