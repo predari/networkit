@@ -247,10 +247,8 @@ private:
                 assert(v_adj.size() <= v_deg);
 
                 // std::cout << " e: ( " << u << ", " << v << " ) --> list ( [";
-
                 // for (int k = 0; k < u_deg; k++)
                 //         std::cout << u_adj[k] << " ";
-                
                 // std::cout << "] , [";
                 // for (int k = 0; k < v_deg; k++)
                 //         std::cout << v_adj[k] << " ";
@@ -324,9 +322,9 @@ private:
                                                                              edges2[u].emplace_back(v);
                                                                      });
                                         });
-                
+
                 ugraph.parallelForEdges([&](node u, node v) {
-                                                // TODO: consider checking for u or v with empty adj lists.
+                                                
                                                 // work on updated graph only
                                                 sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), mtype1); 
                                                 // work on updated and update graph
@@ -334,10 +332,12 @@ private:
                                                                     v, edges2[v], ugraph.degree(v), mtype2);
                                                 sorted_intersection(v, red_edges[v], reduced_degree[v],
                                                                     u, edges2[u], ugraph.degree(u), mtype2);
-                                                 // work on update graph only
+                                                // work on update graph only
+                                                //if ( reduced_degree2[u] && reduced_degree2[v] )
                                                 sorted_intersection(u, red_edges2[u], reduced_degree2[u],
                                                                     v, red_edges2[v], reduced_degree2[v], mtype3);
-                                        });    
+                                        });
+
 
         }
 
