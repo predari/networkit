@@ -491,7 +491,7 @@ private:
 
 
 
-        
+        // deletion merge for a node based on adjacency list in G and B
         count DynTriangleCounting::do_merge_delete( std::vector<node> & adj_inG, const count deg_inG,
                                                    const std::vector<node> & adj_inB, const count deg_inB) {
                 assert(adj_inG.size() >= deg_inG);
@@ -521,7 +521,7 @@ private:
         
 
         
-        // merge for a given node
+        // insertion merge for a node based on adjacency list in G and B
         count DynTriangleCounting::do_merge_insert(const std::vector<node> adj_inG, const count deg_inG,
                                                    const std::vector<node> adj_inB, const count deg_inB,
                                                    std::vector<node> & adj_inGI) {
@@ -562,8 +562,8 @@ private:
 
                 std::vector<edgeweight> empty;
                 GraphBuilder result(n, false, false);
-
-                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+                
+                //INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
                 G->balancedParallelForNodes([&](node v) {
 
                                                     count current_degree = G->degree(v);
@@ -578,14 +578,13 @@ private:
                                                                                  ngb.emplace_back(j);
                                                                          });
                                                     
-                                                    INFO("** ***** NODE v = ", v);
-                                                    INFO("** ***** NODE degree = ", current_degree);
-                                                    std::cout << "[";
-                                                    for (int i = 0; i < ngb.size(); i++) {
-                                                            std::cout << ngb[i] << " ";
-                                                    }
-                                                    
-                                                    std::cout << "]" << std::endl;
+                                                    // INFO("** ***** NODE v = ", v);
+                                                    // INFO("** ***** NODE degree = ", current_degree);
+                                                    // std::cout << "[";
+                                                    // for (int i = 0; i < ngb.size(); i++) {
+                                                    //         std::cout << ngb[i] << " ";
+                                                    // }
+                                                    // std::cout << "]" << std::endl;
 
                                                     // TODO: should check also if the other degree is zero to avoid comparisons !
                                                     
@@ -600,22 +599,21 @@ private:
                                                             
                                                             std::vector<node> new_ngb(max_new_degree); // maybe reserve ?
 
-                                                            INFO("** ***** MERGING ", v);
-                                                            std::cout << "[";
-                                                            for (int i = 0; i < update_ngb.size(); i++) {
-                                                                    std::cout << update_ngb[i] << " ";
-                                                            }
-
-                                                            std::cout << "]" << std::endl;
+                                                            // INFO("** ***** MERGING ", v);
+                                                            // std::cout << "[";
+                                                            // for (int i = 0; i < update_ngb.size(); i++) {
+                                                            //         std::cout << update_ngb[i] << " ";
+                                                            // }
+                                                            // std::cout << "]" << std::endl;
                                                             
                                                             count new_degree = do_merge_insert(ngb, current_degree, update_ngb, update_degree, new_ngb);
-                                                            INFO("** ***** AFTER MERGING OF ", v);
-                                                            std::cout << "[";
-                                                            for (int i = 0; i < new_ngb.size(); i++) {
-                                                                    std::cout << new_ngb[i] << " ";
-                                                            }
+                                                            // INFO("** ***** AFTER MERGING OF ", v);
+                                                            // std::cout << "[";
+                                                            // for (int i = 0; i < new_ngb.size(); i++) {
+                                                            //         std::cout << new_ngb[i] << " ";
+                                                            // }
+                                                            // std::cout << "]" << std::endl;
                                                             
-                                                            std::cout << "]" << std::endl;
                                                             assert(new_ngb.size() == new_degree);
 
 
@@ -623,13 +621,12 @@ private:
                                                     } // just copy previous adj
                                                     
                                                     else {
-                                                            INFO("** ***** NO MERGING ", v);
-                                                            std::cout << "[";
-                                                            for (int i = 0; i < ngb.size(); i++) {
-                                                                    std::cout << ngb[i] << " ";
-                                                            }
-                                                            
-                                                            std::cout << "]" << std::endl;
+                                                            // INFO("** ***** NO MERGING ", v);
+                                                            // std::cout << "[";
+                                                            // for (int i = 0; i < ngb.size(); i++) {
+                                                            //         std::cout << ngb[i] << " ";
+                                                            // }
+                                                            // std::cout << "]" << std::endl;
 
 
                                                             result.swapNeighborhood(v, ngb, empty, false);
@@ -650,7 +647,7 @@ private:
                 std::vector<edgeweight> empty;
                 GraphBuilder result(n, false, false);
 
-                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+                //INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
                 G->balancedParallelForNodes([&](node v) {
 
                                                     count current_degree = G->degree(v);
@@ -665,14 +662,14 @@ private:
                                                                                  ngb.emplace_back(j);
                                                                          });
                                                     
-                                                    INFO("** ***** NODE v = ", v);
-                                                    INFO("** ***** NODE degree = ", current_degree);
-                                                    std::cout << "[";
-                                                    for (int i = 0; i < ngb.size(); i++) {
-                                                            std::cout << ngb[i] << " ";
-                                                    }
+                                                    // INFO("** ***** NODE v = ", v);
+                                                    // INFO("** ***** NODE degree = ", current_degree);
+                                                    // std::cout << "[";
+                                                    // for (int i = 0; i < ngb.size(); i++) {
+                                                    //         std::cout << ngb[i] << " ";
+                                                    // }
                                                     
-                                                    std::cout << "]" << std::endl;
+                                                    // std::cout << "]" << std::endl;
 
                                                    
                                                     if (update_degree) {
@@ -681,22 +678,21 @@ private:
                                                                                              update_ngb.emplace_back(j);
                                                                                      });
                                                             
-                                                            INFO("** ***** MERGING ", v);
-                                                            std::cout << "[";
-                                                            for (int i = 0; i < update_ngb.size(); i++) {
-                                                                    std::cout << update_ngb[i] << " ";
-                                                            }
-
-                                                            std::cout << "]" << std::endl;
+                                                            // INFO("** ***** MERGING ", v);
+                                                            // std::cout << "[";
+                                                            // for (int i = 0; i < update_ngb.size(); i++) {
+                                                            //         std::cout << update_ngb[i] << " ";
+                                                            // }
+                                                            // std::cout << "]" << std::endl;
                                                             
                                                             count new_degree = do_merge_delete(ngb, current_degree, update_ngb, update_degree);
-                                                            INFO("** ***** AFTER MERGING OF ", v);
-                                                            std::cout << "[";
-                                                            for (int i = 0; i < ngb.size(); i++) {
-                                                                    std::cout << ngb[i] << " ";
-                                                            }
+                                                            // INFO("** ***** AFTER MERGING OF ", v);
+                                                            // std::cout << "[";
+                                                            // for (int i = 0; i < ngb.size(); i++) {
+                                                            //         std::cout << ngb[i] << " ";
+                                                            // }
+                                                            // std::cout << "]" << std::endl;
                                                             
-                                                            std::cout << "]" << std::endl;
                                                             assert(new_degree <= ngb.size());
                                                             if (new_degree < ngb.size()) {
                                                                     std::vector<node> new_ngb(new_degree);
@@ -712,13 +708,12 @@ private:
                                                     // just copy previous adj
                                                     
                                                     else {
-                                                            INFO("** ***** NO MERGING ", v);
-                                                            std::cout << "[";
-                                                            for (int i = 0; i < ngb.size(); i++) {
-                                                                    std::cout << ngb[i] << " ";
-                                                            }
-                                                            
-                                                            std::cout << "]" << std::endl;
+                                                            // INFO("** ***** NO MERGING ", v);
+                                                            // std::cout << "[";
+                                                            // for (int i = 0; i < ngb.size(); i++) {
+                                                            //         std::cout << ngb[i] << " ";
+                                                            // }
+                                                            // std::cout << "]" << std::endl;
                                                             result.swapNeighborhood(v, ngb, empty, false);
 
                                                     }
@@ -729,71 +724,6 @@ private:
                                                             
         }
         
-        // void DynTriangleCounting::edgeInsertionSorted(const std::vector<GraphEvent>& batch) {
-                
-        //         // construct G'
-        //         count n = G->upperNodeIdBound();
-        //         Graph B = Graph(n);
-        //         for(auto e : batch){
-        //                 B.addEdge(e.u, e.v);
-        //         }
-        //         B.sortEdges();
-        //         INFO("** ***** SORTING BATCH *****");
-        //         if(checkSorted(NULL)) std::cout << " TC : original graph G is sorted. " << std::endl;
-        //         if(checkSorted(&B)) std::cout << " TC : batch-graph B is sorted. "<< std::endl;
-                
-        //         std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-        //         std::vector<std::vector<node> > edges2(B.upperNodeIdBound());
-
-        //         G->parallelForNodes([&](node u) {
-        //                                     edges[u].reserve(G->degree(u));
-        //                                     G->forEdgesOf(u, [&](node, node v, edgeid) {
-        //                                                              edges[u].emplace_back(v);
-        //                                                      });
-        //                             });
-
-        //         B.parallelForNodes([&](node u) {
-        //                                     edges2[u].reserve(B.degree(u));
-        //                                     B.forEdgesOf(u, [&](node, node v, edgeid) {
-        //                                                             edges2[u].emplace_back(v);
-        //                                                     });
-        //                            });
-
-        //         std::cout << " TC : retrieving edge lists. "<< std::endl;
-        //         G->parallelForNodes([&](node u) {
-        //                                     int i = G->degree(u);
-        //                                     int j = B.degree(u);
-
-        //                                     while( (i >= 0) && (j >= 0) ) {
-        //                                             int comp;
-        //                                             node x = G->upperNodeIdBound();
-        //                                             node y = G->upperNodeIdBound();
-        //                                             if ( i == 0 && G->isIsolated(u)) x = 0;  
-        //                                             else x = edges[u][i];
-        //                                             if ( j == 0 && B.isIsolated(u)) y = 0;  
-        //                                             else y = edges2[u][j];
-        //                                             comp = x - y;
-        //                                             //comp = edges[u][i] - edges2[u][j];
-        //                                            if (comp > 0) {
-
-        //                                                    G->addEdge(u, y);
-        //                                                    i -= 1; 
-        //                                            } else {
-        //                                                    G->addEdge(u, edges2[u][j]);
-        //                                                    j -= 1; 
-        //                                            }
-        //                                    }
-        //                                     while(j > 0) {
-        //                                     //while( j >= 0) {
-        //                                            G->addEdge(u, edges2[u][j]);
-        //                                            j -= 1; 
-        //                                    }
-        //                             });
-        //         std::cout << " TC : merging sorted graphs sucessfully. "<< std::endl;
-                
-        // }
-
-
         void DynTriangleCounting::edgeInsertion(const std::vector<GraphEvent>& batch) {
                 for(auto e : batch){
                         G->addEdge(e.u, e.v);
@@ -813,12 +743,7 @@ private:
                 
         }
 
-
         
-        void DynTriangleCounting::edgeDeletionSorted(const std::vector<GraphEvent> &batch) {
-                std::cout << " TC: edgeDeletionSorted() is not implemented yet." << std::endl;
-        }
-
         bool DynTriangleCounting::checkSorted(const Graph * G1 = NULL) {
                 bool res = true;
                 if (G1 == NULL) {
