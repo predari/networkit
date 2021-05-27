@@ -550,37 +550,9 @@ private:
                 count n = G->upperNodeIdBound();
                 assert(checkSorted(NULL));
                 assert(checkSorted(&ugraph));
-                // if(checkSorted())
-                //         std::cout << " TC : original graph G is sorted. " << std::endl;
-                // if(checkSorted(&B))
-                //         std::cout << " TC : batch-graph B is sorted. "<< std::endl;
 
                 std::vector<edgeweight> empty;
                 GraphBuilder result(n, false, false);
-
-                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-                std::vector<std::vector<node> > edges2(ugraph.upperNodeIdBound());
-                
-                G->parallelForNodes([&](node u) {
-                                            edges[u].reserve(G->degree(u));
-                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                     edges[u].emplace_back(v);
-                                                             });
-                                    });
-                
-                ugraph.parallelForNodes([&](node u) {
-                                           edges2[u].reserve(ugraph.degree(u));
-                                           ugraph.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                   edges2[u].emplace_back(v);
-                                                           });
-                                   });
-                
-                
-                // std::vector<edgeid> neighbors;
-                // neighbors.reserve(d);
-                // G->forNeighborsOf(i, [&](node _i, node j, edgeid eid) {
-                //                              neighbors.emplace_back(eid);
-                //                      });
 
                 INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
                 G->balancedParallelForNodes([&](node v) {
@@ -593,13 +565,9 @@ private:
                                                     std::vector<node> update_ngb;
                                                     ngb.reserve(current_degree);
                                                              
-                                                    // G->forNeighborsOf(v, [&](node _i, node j) {
-                                                    //                              ngb.emplace_back(j);
-                                                    //                      });
-
-                                                    G->forEdgesOf(v, [&](node, node j, edgeid) {
-                                                                             ngb.emplace_back(j);
-                                                                     });
+                                                    G->forNeighborsOf(v, [&](node _i, node j) {
+                                                                                 ngb.emplace_back(j);
+                                                                         });
                                                     
                                                     INFO("** ***** NODE v = ", v);
                                                     INFO("** ***** NODE degree = ", current_degree);
@@ -615,9 +583,6 @@ private:
                                                     if (update_degree) {
                                                             update_ngb.reserve(update_degree);
                                                             
-                                                            // ugraph.forEdgesOf(v, [&](node, node j, edgeid) {
-                                                            //                              update_ngb.emplace_back(j);
-                                                            //                      });
                                                             
 
                                                             ugraph.forNeighborsOf(v, [&](node _i, node j) {
@@ -625,7 +590,7 @@ private:
                                                                                      });
                                                             
                                                             std::vector<node> new_ngb(max_new_degree); // maybe reserve ?
-                                                            //count new_degree = do_merge_test(ngb, update_ngb);
+
                                                             INFO("** ***** MERGING ", v);
                                                             std::cout << "[";
                                                             for (int i = 0; i < update_ngb.size(); i++) {
