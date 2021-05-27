@@ -13,6 +13,7 @@
 #include <networkit/dynamics/GraphEvent.hpp>
 #include <networkit/base/Algorithm.hpp>
 #include <networkit/base/DynAlgorithm.hpp>
+#include <networkit/graph/GraphBuilder.hpp>
 
 namespace NetworKit {
 
@@ -48,7 +49,7 @@ public:
         void edgeDeletion(const std::vector<GraphEvent> &batch);
         void edgeInsertionSorted(const std::vector<GraphEvent> &batch);
         void edgeDeletionSorted(const std::vector<GraphEvent> &batch);
-        
+        Graph edgeInsertionSorted(const Graph & ugraph);        
         /**
          * Updates the total number of triangles in G after a batch of updates.
          *
@@ -102,15 +103,23 @@ private:
         count bsearch_intersection( node u, node v, const std::vector<node> & u_adj, count u_deg);
         count sorted_intersection( node u, const std::vector<node> & u_adj, count u_deg,
                                    node v,const std::vector<node> & v_adj, count v_deg, double m);
-        
+        // consider call by ref for adj_inG and adj_inB
+        count do_merge_insert(const std::vector<node> adj_inG, const count deg_inG,
+                              const std::vector<node> adj_inB, const count deg_inB,
+                              std::vector<node> & adj_inGI);
 
+        count do_merge_delete(std::vector<node> & adj_inG, const count deg_inG,
+                              const std::vector<node> & adj_inB, const count deg_inB);
+
+        
         count countTrianglesType1(const Graph &ugraph, double m);
         count countTrianglesType2(const Graph &ugraph, double m);
         count countTrianglesType3(const Graph &ugraph, double m);
         void countUpdateTriangles(const Graph &ugraph, bool insertion);
 
-
+        // pointer to new graph
         Graph *G;
+        Graph U;
         // current triangle count per node
         std::vector<double> TrianglesPerNode;
         // current total number of triangles
@@ -150,6 +159,10 @@ private:
         
 
         void DynTriangleCounting::run() {
+
+                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+
+                
                 std::fill(TrianglesPerNode.begin(),  TrianglesPerNode.end(), 0.0);
                 TrianglesPerNode.resize(G->upperNodeIdBound(), 0.0);
                 t_t = 0;
@@ -158,6 +171,7 @@ private:
                 /* sort edge lists */
                 // TODO: remove it from here. Assume that graph input is sorted
                 G->sortEdges();
+                INFO("** ***** SORTING GRAPH *****");
                 /* copy edge lists */ 
                 G->parallelForNodes([&](node u) {
                                             edges[u].reserve(G->degree(u));
@@ -212,8 +226,41 @@ private:
 
                         ugraph.addEdge(e.u, e.v);
                 }
-                INFO("** ***** Sorting updating batch *****");
+
                 ugraph.sortEdges();
+                INFO("** ***** SORTING BATCH *****");
+                INFO(" ** *****  = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+                Graph GI = edgeInsertionSorted(ugraph);
+                U = std::move(GI);
+                // to
+                INFO(" ** ***** INSERTION RUN SUCCESSFULLY ***** ");
+                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+                INFO(" ** ***** GI  = (" , GI.numberOfNodes() , ", " , GI.numberOfEdges() , ")");
+                INFO(" ** ***** U  = (" , U.numberOfNodes() , ", " , U.numberOfEdges() , ")");
+                                
+                U.forNodes([&](node u) {
+                                   U.forEdgesOf(u, [&](node, node v, edgeid) {
+                                                           std::cout << " " << v;
+                                                   });
+                                   std::cout << std::endl;
+                            });
+                
+
+
+
+                G = &U;
+                INFO(" ** ***** AFTER GRAPH ASSIGNMENT ***** ");
+                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+
+                                
+                G->forNodes([&](node u) {
+                                    G->forEdgesOf(u, [&](node, node v, edgeid) {
+                                                            std::cout << " " << v;
+                                                    });
+                                    std::cout << std::endl;
+                            });
+                
+                
                 // double mtype1, mtype2, mtype3;
                 //  if (insertion) {
                 //         mtype1 = 1.0;
@@ -236,6 +283,8 @@ private:
                 
                 countUpdateTriangles(ugraph,insertion);
                 computeTriangleCount();
+                INFO(" ** ***** UPDATE ");
+                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
         }
 
 
@@ -283,6 +332,8 @@ private:
 
         void DynTriangleCounting::countUpdateTriangles(const Graph &ugraph, bool insertion) {
                 double mtype1, mtype2, mtype3;
+                INFO(" ** ***** UPDATE ");
+                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
                 if (insertion) {
                         mtype1 = 1.0;
                         mtype2 = -1.0;
@@ -431,72 +482,254 @@ private:
 
 
 
+        
+        count DynTriangleCounting::do_merge_delete( std::vector<node> & adj_inG, const count deg_inG,
+                                                   const std::vector<node> & adj_inB, const count deg_inB) {
+                assert(adj_inG.size() >= deg_inG);
+                assert(adj_inB.size() >= deg_inB);
                 
-
-
-        void DynTriangleCounting::edgeInsertionSorted(const std::vector<GraphEvent>& batch) {
-                
-                // construct G'
-                count n = G->upperNodeIdBound();
-                Graph B = Graph(n);
-                for(auto e : batch){
-                        B.addEdge(e.u, e.v);
+                index a = 0, b = 0, k = 0;
+                while (a < deg_inG && b < deg_inB) {
+                        int comp = adj_inG[a] - adj_inB[b];
+                        if (!comp) { // deleted
+                                a++; b++;
+                        } else if ( comp < 0 ) {
+                                adj_inG[k] = adj_inG[a];
+                                k++; a++;
+                        } else { // deletion not found
+                                b++;
+                        }
                 }
-                B.sortEdges();
-                INFO("** ***** Sorting updating batch *****");
-                if(checkSorted(NULL)) std::cout << " TC : original graph G is sorted. " << std::endl;
-                if(checkSorted(&B)) std::cout << " TC : batch-graph B is sorted. "<< std::endl;
-                
-                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-                std::vector<std::vector<node> > edges2(B.upperNodeIdBound());
+                while (a < deg_inG) {
+                        adj_inG[k] = adj_inG[a];
+                        k++; a++;
+                }
+                while (b < deg_inB) {
+                        b++;
+                }
+                return k;
+        }
+        
 
+        
+        // merge for a given node
+        count DynTriangleCounting::do_merge_insert(const std::vector<node> adj_inG, const count deg_inG,
+                                                   const std::vector<node> adj_inB, const count deg_inB,
+                                                   std::vector<node> & adj_inGI) {
+                assert(adj_inG.size() >= deg_inG);
+                assert(adj_inB.size() >= deg_inB);
+                assert(adj_inGI.size() <= (deg_inG + deg_inB));
+                assert(adj_inGI.size() >= deg_inG);
+                
+                index a = 0, b = 0, k = 0;
+                while (a < deg_inG && b < deg_inB) {
+                        int comp = adj_inG[a] - adj_inB[b];
+                        if (!comp) { // this edge is already present in graph.
+                                adj_inGI[k] = adj_inG[a];
+                                k++; a++; b++;
+                        } else if ( comp < 0 ) {
+                                adj_inGI[k] = adj_inG[a];
+                                k++; a++;
+                        } else {
+                                adj_inGI[k] = adj_inB[b];
+                                k++; b++;
+                        }
+                }
+                while (a < deg_inG) {
+                        adj_inGI[k] = adj_inG[a];
+                        k++; a++;
+                }
+                while (b < deg_inB) {
+                        adj_inGI[k] = adj_inB[b];
+                        k++; b++;
+                }
+                return k;
+        }
+        
+        Graph  DynTriangleCounting::edgeInsertionSorted(const Graph & ugraph) {
+                count n = G->upperNodeIdBound();
+                assert(checkSorted(NULL));
+                assert(checkSorted(&ugraph));
+                // if(checkSorted())
+                //         std::cout << " TC : original graph G is sorted. " << std::endl;
+                // if(checkSorted(&B))
+                //         std::cout << " TC : batch-graph B is sorted. "<< std::endl;
+
+                std::vector<edgeweight> empty;
+                GraphBuilder result(n, false, false);
+
+                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
+                std::vector<std::vector<node> > edges2(ugraph.upperNodeIdBound());
+                
                 G->parallelForNodes([&](node u) {
                                             edges[u].reserve(G->degree(u));
                                             G->forEdgesOf(u, [&](node, node v, edgeid) {
                                                                      edges[u].emplace_back(v);
                                                              });
                                     });
-
-                B.parallelForNodes([&](node u) {
-                                            edges2[u].reserve(B.degree(u));
-                                            B.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                    edges2[u].emplace_back(v);
-                                                            });
-                                   });
-
-                std::cout << " TC : retrieving edge lists. "<< std::endl;
-                G->parallelForNodes([&](node u) {
-                                            int i = G->degree(u);
-                                            int j = B.degree(u);
-
-                                            while( (i >= 0) && (j >= 0) ) {
-                                                    int comp;
-                                                    node x = G->upperNodeIdBound();
-                                                    node y = G->upperNodeIdBound();
-                                                    if ( i == 0 && G->isIsolated(u)) x = 0;  
-                                                    else x = edges[u][i];
-                                                    if ( j == 0 && B.isIsolated(u)) y = 0;  
-                                                    else y = edges2[u][j];
-                                                    comp = x - y;
-                                                    //comp = edges[u][i] - edges2[u][j];
-                                                   if (comp > 0) {
-
-                                                           G->addEdge(u, y);
-                                                           i -= 1; 
-                                                   } else {
-                                                           G->addEdge(u, edges2[u][j]);
-                                                           j -= 1; 
-                                                   }
-                                           }
-                                            while(j > 0) {
-                                            //while( j >= 0) {
-                                                   G->addEdge(u, edges2[u][j]);
-                                                   j -= 1; 
-                                           }
-                                    });
-                std::cout << " TC : merging sorted graphs sucessfully. "<< std::endl;
                 
+                ugraph.parallelForNodes([&](node u) {
+                                           edges2[u].reserve(ugraph.degree(u));
+                                           ugraph.forEdgesOf(u, [&](node, node v, edgeid) {
+                                                                   edges2[u].emplace_back(v);
+                                                           });
+                                   });
+                
+                
+                // std::vector<edgeid> neighbors;
+                // neighbors.reserve(d);
+                // G->forNeighborsOf(i, [&](node _i, node j, edgeid eid) {
+                //                              neighbors.emplace_back(eid);
+                //                      });
+
+                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+                G->balancedParallelForNodes([&](node v) {
+
+                                                    count current_degree = G->degree(v);
+                                                    count update_degree = ugraph.degree(v);
+                                                    count max_new_degree = current_degree + update_degree;
+                                                    // allocate
+                                                    std::vector<node> ngb;
+                                                    std::vector<node> update_ngb;
+                                                    ngb.reserve(current_degree);
+                                                             
+                                                    // G->forNeighborsOf(v, [&](node _i, node j) {
+                                                    //                              ngb.emplace_back(j);
+                                                    //                      });
+
+                                                    G->forEdgesOf(v, [&](node, node j, edgeid) {
+                                                                             ngb.emplace_back(j);
+                                                                     });
+                                                    
+                                                    INFO("** ***** NODE v = ", v);
+                                                    INFO("** ***** NODE degree = ", current_degree);
+                                                    std::cout << "[";
+                                                    for (int i = 0; i < ngb.size(); i++) {
+                                                            std::cout << ngb[i] << " ";
+                                                    }
+                                                    
+                                                    std::cout << "]" << std::endl;
+
+                                                    
+                                                    
+                                                    if (update_degree) {
+                                                            update_ngb.reserve(update_degree);
+                                                            
+                                                            // ugraph.forEdgesOf(v, [&](node, node j, edgeid) {
+                                                            //                              update_ngb.emplace_back(j);
+                                                            //                      });
+                                                            
+
+                                                            ugraph.forNeighborsOf(v, [&](node _i, node j) {
+                                                                                             update_ngb.emplace_back(j);
+                                                                                     });
+                                                            
+                                                            std::vector<node> new_ngb(max_new_degree); // maybe reserve ?
+                                                            //count new_degree = do_merge_test(ngb, update_ngb);
+                                                            INFO("** ***** MERGING ", v);
+                                                            std::cout << "[";
+                                                            for (int i = 0; i < update_ngb.size(); i++) {
+                                                                    std::cout << update_ngb[i] << " ";
+                                                            }
+
+                                                            std::cout << "]" << std::endl;
+                                                            
+                                                            count new_degree = do_merge_insert(ngb, current_degree, update_ngb, update_degree, new_ngb);
+                                                            INFO("** ***** AFTER MERGING OF ", v);
+                                                            std::cout << "[";
+                                                            for (int i = 0; i < new_ngb.size(); i++) {
+                                                                    std::cout << new_ngb[i] << " ";
+                                                            }
+                                                            
+                                                            std::cout << "]" << std::endl;
+                                                            assert(new_ngb.size() == new_degree);
+
+
+                                                            result.swapNeighborhood(v, new_ngb, empty, false);
+                                                    } // just copy previous adj
+                                                    
+                                                    else {
+                                                            INFO("** ***** NO MERGING ", v);
+                                                            std::cout << "[";
+                                                            for (int i = 0; i < ngb.size(); i++) {
+                                                                    std::cout << ngb[i] << " ";
+                                                            }
+                                                            
+                                                            std::cout << "]" << std::endl;
+
+
+                                                            result.swapNeighborhood(v, ngb, empty, false);
+                                                    }
+                                            });
+                Graph H = result.toGraph(false,true);
+                return H;
+                                                            
         }
+
+
+        // void DynTriangleCounting::edgeInsertionSorted(const std::vector<GraphEvent>& batch) {
+                
+        //         // construct G'
+        //         count n = G->upperNodeIdBound();
+        //         Graph B = Graph(n);
+        //         for(auto e : batch){
+        //                 B.addEdge(e.u, e.v);
+        //         }
+        //         B.sortEdges();
+        //         INFO("** ***** SORTING BATCH *****");
+        //         if(checkSorted(NULL)) std::cout << " TC : original graph G is sorted. " << std::endl;
+        //         if(checkSorted(&B)) std::cout << " TC : batch-graph B is sorted. "<< std::endl;
+                
+        //         std::vector<std::vector<node> > edges(G->upperNodeIdBound());
+        //         std::vector<std::vector<node> > edges2(B.upperNodeIdBound());
+
+        //         G->parallelForNodes([&](node u) {
+        //                                     edges[u].reserve(G->degree(u));
+        //                                     G->forEdgesOf(u, [&](node, node v, edgeid) {
+        //                                                              edges[u].emplace_back(v);
+        //                                                      });
+        //                             });
+
+        //         B.parallelForNodes([&](node u) {
+        //                                     edges2[u].reserve(B.degree(u));
+        //                                     B.forEdgesOf(u, [&](node, node v, edgeid) {
+        //                                                             edges2[u].emplace_back(v);
+        //                                                     });
+        //                            });
+
+        //         std::cout << " TC : retrieving edge lists. "<< std::endl;
+        //         G->parallelForNodes([&](node u) {
+        //                                     int i = G->degree(u);
+        //                                     int j = B.degree(u);
+
+        //                                     while( (i >= 0) && (j >= 0) ) {
+        //                                             int comp;
+        //                                             node x = G->upperNodeIdBound();
+        //                                             node y = G->upperNodeIdBound();
+        //                                             if ( i == 0 && G->isIsolated(u)) x = 0;  
+        //                                             else x = edges[u][i];
+        //                                             if ( j == 0 && B.isIsolated(u)) y = 0;  
+        //                                             else y = edges2[u][j];
+        //                                             comp = x - y;
+        //                                             //comp = edges[u][i] - edges2[u][j];
+        //                                            if (comp > 0) {
+
+        //                                                    G->addEdge(u, y);
+        //                                                    i -= 1; 
+        //                                            } else {
+        //                                                    G->addEdge(u, edges2[u][j]);
+        //                                                    j -= 1; 
+        //                                            }
+        //                                    }
+        //                                     while(j > 0) {
+        //                                     //while( j >= 0) {
+        //                                            G->addEdge(u, edges2[u][j]);
+        //                                            j -= 1; 
+        //                                    }
+        //                             });
+        //         std::cout << " TC : merging sorted graphs sucessfully. "<< std::endl;
+                
+        // }
 
 
         void DynTriangleCounting::edgeInsertion(const std::vector<GraphEvent>& batch) {
@@ -504,7 +737,8 @@ private:
                         G->addEdge(e.u, e.v);
                 }
                 G->sortEdges();
-                INFO("** ***** Sorting updated graph *****");
+                INFO("** ***** SORTING GRAPH *****");
+
                 
         }
 
@@ -513,7 +747,7 @@ private:
                         G->removeEdge(e.u, e.v);
                 }
                 G->sortEdges();
-                INFO("** ***** Sorting updated graph *****");
+                INFO("** ***** SORTING GRAPH *****");
                 
         }
 

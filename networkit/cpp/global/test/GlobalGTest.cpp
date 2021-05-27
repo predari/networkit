@@ -164,7 +164,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     addition.push_back(GraphEvent(GraphEvent::EDGE_ADDITION, 2, 1));
     
     INFO(" ** DYNAMIC ALGO on updated G_I = {G}U{G'}.");
-    dyntc.edgeInsertion(addition);
+    //dyntc.edgeInsertion(addition);
     assert(dyntc.checkSorted());
     dyntc.updateBatch(addition);
     double final_triangles = dyntc.getTriangleCount();
@@ -181,7 +181,8 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
             t_t += t_score[u];
     EXPECT_EQ(t_t/3, final_triangles);
 
-
+    INFO(" ** ***** TEST ");
+    INFO(" ** ***** G = (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
     INFO(" ** STATIC ALGO on G_I. ");
     dyntc.run();
     double static_triangles = dyntc.getTriangleCount();
@@ -243,7 +244,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 2, 1));
     
 
-    dyntc.edgeDeletion(deletion);
+    //dyntc.edgeDeletion(deletion);
     assert(dyntc.checkSorted());
     INFO(" ** DYNAMIC ALGO on updated G_D = {G}\\cap{G'}.");
     dyntc.updateBatch(deletion);
@@ -331,15 +332,16 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
 
         EXPECT_LE(static_triangles, triangles);
         EXPECT_EQ(0, dyntc.getNewTriangles()); 
-        // TODO: make sure sorting is done only once.  
-        G.sortEdges();
+        // TODO: make sure sorting is done only once.
+        // TODO: input should be sorted for edgeInsertionSorted.
+        //G.sortEdges();
         INFO(" ** DYNAMIC ALGO on updated G_I = {G}U{G'}.");
         double total_update_triangles = 0;
         double total_update_time = 0.0;
         for(unsigned i = 0; i < numBatches; ++i) {
                 assert(i < addition.size());
                 timer.start();
-                dyntc.edgeInsertion(addition[i]);
+                //dyntc.edgeInsertion(addition[i]);
                 timer.stop();
                 if(!dyntc.checkSorted())
                         WARN(" ** ***** GRAPH IS NOT SORTED!");
@@ -353,6 +355,8 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
                 total_update_time += timer.elapsedMicroseconds() / 1e6;
                 
         }
+
+
         
         double final_triangles = dyntc.getTriangleCount();
         EXPECT_EQ(final_triangles, triangles);        
