@@ -47,8 +47,7 @@ public:
         // tmp version for inserting edges and sorting afterwards
         void edgeInsertion(const std::vector<GraphEvent> &batch);
         void edgeDeletion(const std::vector<GraphEvent> &batch);
-        void edgeInsertionSorted(const std::vector<GraphEvent> &batch);
-        void edgeDeletionSorted(const std::vector<GraphEvent> &batch);
+
         Graph edgeInsertionSorted(const Graph & ugraph);
         Graph edgeDeletionSorted(const Graph & ugraph);
         /**
@@ -112,10 +111,6 @@ private:
         count do_merge_delete(std::vector<node> & adj_inG, const count deg_inG,
                               const std::vector<node> & adj_inB, const count deg_inB);
 
-        
-        count countTrianglesType1(const Graph &ugraph, double m);
-        count countTrianglesType2(const Graph &ugraph, double m);
-        count countTrianglesType3(const Graph &ugraph, double m);
         void countUpdateTriangles(const Graph &ugraph, bool insertion);
 
         // pointer to new graph
@@ -160,9 +155,6 @@ private:
         
 
         void DynTriangleCounting::run() {
-
-                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
-
                 
                 std::fill(TrianglesPerNode.begin(),  TrianglesPerNode.end(), 0.0);
                 TrianglesPerNode.resize(G->upperNodeIdBound(), 0.0);
@@ -236,64 +228,33 @@ private:
                         Graph GI = edgeInsertionSorted(ugraph);
                         U = std::move(GI);
                         INFO(" ** ***** INSERTION RUN SUCCESSFULLY ***** ");
-                        INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
                         INFO(" ** ***** GI  = (" , GI.numberOfNodes() , ", " , GI.numberOfEdges() , ")");
 
                 } else {
                         Graph GD = edgeDeletionSorted(ugraph);
                         U = std::move(GD);
                         INFO(" ** ***** DELETION RUN SUCCESSFULLY ***** ");
-                        INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
                         INFO(" ** ***** GD  = (" , GD.numberOfNodes() , ", " , GD.numberOfEdges() , ")");
                         
                 }
 
-                INFO(" ** ***** U  = (" , U.numberOfNodes() , ", " , U.numberOfEdges() , ")");        
-                U.forNodes([&](node u) {
-                                   U.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                           std::cout << " " << v;
-                                                   });
-                                   std::cout << std::endl;
-                            });
-                
-
                 G = &U;
-                INFO(" ** ***** AFTER GRAPH ASSIGNMENT ***** ");
-                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+                
+                // INFO(" ** ***** AFTER GRAPH ASSIGNMENT ***** ");
+                // INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
 
                                 
-                G->forNodes([&](node u) {
-                                    G->forEdgesOf(u, [&](node, node v, edgeid) {
-                                                            std::cout << " " << v;
-                                                    });
-                                    std::cout << std::endl;
-                            });
+                // G->forNodes([&](node u) {
+                //                     G->forEdgesOf(u, [&](node, node v, edgeid) {
+                //                                             std::cout << " " << v;
+                //                                     });
+                //                     std::cout << std::endl;
+                //             });
                 
                 
-                // double mtype1, mtype2, mtype3;
-                //  if (insertion) {
-                //         mtype1 = 1.0;
-                //         mtype2 = -1.0;
-                //         mtype3 = 1.0;
-                //         countTrianglesType1(ugraph, mtype1);
-                //         countTrianglesType2(ugraph, mtype2);
-                //         countTrianglesType3(ugraph, mtype3);
-                //         //t_t += (S1-S2+S3);
-                        
-                // }
-                // else {
-                //         mtype1 = mtype2 = mtype3 = -1.0;
-                //         if (!t_t) return;
-                //         countTrianglesType1(ugraph, mtype1);
-                //         countTrianglesType2(ugraph, mtype2);
-                //         countTrianglesType3(ugraph, mtype3);
-                //         //t_t = S1+S2+S3
-                // }
                 
                 countUpdateTriangles(ugraph,insertion);
                 computeTriangleCount();
-                INFO(" ** ***** UPDATE ");
-                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
         }
 
 
@@ -399,94 +360,6 @@ private:
                                         });
 
 
-        }
-
-        
-        
-
-        count DynTriangleCounting::countTrianglesType1(const Graph &ugraph, double m) {
-                count total =  0;
-                // following is repetiton compared to countTriangleType2 and countTriangleType3
-                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-                G->parallelForNodes([&](node u) {
-                                            edges[u].reserve(G->degree(u));
-                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                     edges[u].emplace_back(v);
-                                                             });
-                                    });
-                
-                ugraph.parallelForEdges([&](node u, node v) {
-                                                // std::cout << " T1 e: ( " << u << ", " << v << " ) --> dgr ( " <<  G->degree(u) << ","
-                                                //           << G->degree(v) << ") "<<  std::endl;
-                                                total += sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), m);
-                                           
-                                   });
-                return total;
-        }
-
-        count DynTriangleCounting::countTrianglesType2(const Graph &ugraph, double m) {
-                count total =  0;
-                std::vector<node> reduced_degree(G->upperNodeIdBound(), 0);
-                std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-                G->parallelForNodes([&](node u) {
-                                            edges[u].reserve(G->degree(u));
-                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                     if (v < u) {
-                                                                             edges[u].emplace_back(v);
-                                                                             reduced_degree[u]++;        
-                                                                     }
-                                                             });
-                                    });
-                
-                std::vector<std::vector<node> > edges2(ugraph.upperNodeIdBound());
-                ugraph.parallelForNodes([&](node u) {
-                                           edges2[u].reserve(ugraph.degree(u));
-                                           ugraph.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                   edges2[u].emplace_back(v);
-                                                           });
-                                   });
-
-                ugraph.parallelForEdges([&](node u, node v) {
-
-                                                  count d_u = reduced_degree[u];
-
-                                                  // std::cout << " T2 e: ( " << u << ", " << v << " ) --> dgr ( " <<  d_u << ", "
-                                                  //           << ugraph.degree(v) << ") "<<  std::endl;
-                                                  total += sorted_intersection(u, edges[u], d_u, v, edges2[v], ugraph.degree(v), m); 
-                                                  count d_v = reduced_degree[v];
-                                                  // std::cout << " ^^ T2 e: ( " << v << ", " << u << " ) --> dgr ( " <<  d_v << ", "
-                                                  //           << ugraph.degree(u) << ") "<<  std::endl;
-                                                  
-                                                  total += sorted_intersection(v, edges[v], d_v, u, edges2[u], ugraph.degree(u), m); 
-
-                                          });
-                return total;
-        }
-
-                count DynTriangleCounting::countTrianglesType3(const Graph &ugraph, double m) {
-                count total =  0;
-                std::vector<std::vector<node> > edges2(ugraph.upperNodeIdBound());
-                std::vector<node> reduced_degree(ugraph.upperNodeIdBound(), 0);
-                
-                ugraph.parallelForNodes([&](node u) {
-                                                  edges2[u].reserve(ugraph.degree(u));
-                                                  ugraph.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                                 if (v < u) {
-                                                                                         edges2[u].emplace_back(v);
-                                                                                         reduced_degree[u]++;
-                                                                                 }
-                                                                         });
-                                          });
-                
-                ugraph.parallelForEdges([&](node u, node v) {
-                                           count d_u = reduced_degree[u];
-                                           count d_v = reduced_degree[v];
-                                           // std::cout << " T3 e: ( " << u << ", " << v << " ) --> dgr ( " <<  d_u << ", "
-                                           //           << d_v << ") "<<  std::endl;
-
-                                           total += sorted_intersection(u, edges2[u], d_u, v, edges2[v], d_v, m);
-                                   });
-                return total;
         }
 
 
