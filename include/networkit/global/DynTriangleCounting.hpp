@@ -49,7 +49,8 @@ public:
         void edgeDeletion(const std::vector<GraphEvent> &batch);
         void edgeInsertionSorted(const std::vector<GraphEvent> &batch);
         void edgeDeletionSorted(const std::vector<GraphEvent> &batch);
-        Graph edgeInsertionSorted(const Graph & ugraph);        
+        Graph edgeInsertionSorted(const Graph & ugraph);
+        Graph edgeDeletionSorted(const Graph & ugraph);
         /**
          * Updates the total number of triangles in G after a batch of updates.
          *
@@ -230,14 +231,24 @@ private:
                 ugraph.sortEdges();
                 INFO("** ***** SORTING BATCH *****");
                 INFO(" ** *****  = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
-                Graph GI = edgeInsertionSorted(ugraph);
-                U = std::move(GI);
-                // to
-                INFO(" ** ***** INSERTION RUN SUCCESSFULLY ***** ");
-                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
-                INFO(" ** ***** GI  = (" , GI.numberOfNodes() , ", " , GI.numberOfEdges() , ")");
-                INFO(" ** ***** U  = (" , U.numberOfNodes() , ", " , U.numberOfEdges() , ")");
-                                
+
+                if (insertion) {
+                        Graph GI = edgeInsertionSorted(ugraph);
+                        U = std::move(GI);
+                        INFO(" ** ***** INSERTION RUN SUCCESSFULLY ***** ");
+                        INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+                        INFO(" ** ***** GI  = (" , GI.numberOfNodes() , ", " , GI.numberOfEdges() , ")");
+
+                } else {
+                        Graph GD = edgeDeletionSorted(ugraph);
+                        U = std::move(GD);
+                        INFO(" ** ***** DELETION RUN SUCCESSFULLY ***** ");
+                        INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+                        INFO(" ** ***** GD  = (" , GD.numberOfNodes() , ", " , GD.numberOfEdges() , ")");
+                        
+                }
+
+                INFO(" ** ***** U  = (" , U.numberOfNodes() , ", " , U.numberOfEdges() , ")");        
                 U.forNodes([&](node u) {
                                    U.forEdgesOf(u, [&](node, node v, edgeid) {
                                                            std::cout << " " << v;
@@ -245,8 +256,6 @@ private:
                                    std::cout << std::endl;
                             });
                 
-
-
 
                 G = &U;
                 INFO(" ** ***** AFTER GRAPH ASSIGNMENT ***** ");
@@ -578,7 +587,7 @@ private:
                                                     
                                                     std::cout << "]" << std::endl;
 
-                                                    
+                                                    // TODO: should check also if the other degree is zero to avoid comparisons !
                                                     
                                                     if (update_degree) {
                                                             update_ngb.reserve(update_degree);
@@ -626,12 +635,100 @@ private:
                                                             result.swapNeighborhood(v, ngb, empty, false);
                                                     }
                                             });
-                Graph H = result.toGraph(false,true);
-                return H;
+                return result.toGraph(false,true);
                                                             
         }
 
 
+
+
+                Graph  DynTriangleCounting::edgeDeletionSorted(const Graph & ugraph) {
+                count n = G->upperNodeIdBound();
+                assert(checkSorted(NULL));
+                assert(checkSorted(&ugraph));
+
+                std::vector<edgeweight> empty;
+                GraphBuilder result(n, false, false);
+
+                INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
+                G->balancedParallelForNodes([&](node v) {
+
+                                                    count current_degree = G->degree(v);
+                                                    count update_degree = ugraph.degree(v);
+                                                    count max_new_degree = current_degree + update_degree;
+                                                    // allocate
+                                                    std::vector<node> ngb;
+                                                    std::vector<node> update_ngb;
+                                                    ngb.reserve(current_degree);
+                                                             
+                                                    G->forNeighborsOf(v, [&](node _i, node j) {
+                                                                                 ngb.emplace_back(j);
+                                                                         });
+                                                    
+                                                    INFO("** ***** NODE v = ", v);
+                                                    INFO("** ***** NODE degree = ", current_degree);
+                                                    std::cout << "[";
+                                                    for (int i = 0; i < ngb.size(); i++) {
+                                                            std::cout << ngb[i] << " ";
+                                                    }
+                                                    
+                                                    std::cout << "]" << std::endl;
+
+                                                   
+                                                    if (update_degree) {
+                                                            update_ngb.reserve(update_degree);
+                                                            ugraph.forNeighborsOf(v, [&](node _i, node j) {
+                                                                                             update_ngb.emplace_back(j);
+                                                                                     });
+                                                            
+                                                            INFO("** ***** MERGING ", v);
+                                                            std::cout << "[";
+                                                            for (int i = 0; i < update_ngb.size(); i++) {
+                                                                    std::cout << update_ngb[i] << " ";
+                                                            }
+
+                                                            std::cout << "]" << std::endl;
+                                                            
+                                                            count new_degree = do_merge_delete(ngb, current_degree, update_ngb, update_degree);
+                                                            INFO("** ***** AFTER MERGING OF ", v);
+                                                            std::cout << "[";
+                                                            for (int i = 0; i < ngb.size(); i++) {
+                                                                    std::cout << ngb[i] << " ";
+                                                            }
+                                                            
+                                                            std::cout << "]" << std::endl;
+                                                            assert(new_degree <= ngb.size());
+                                                            if (new_degree < ngb.size()) {
+                                                                    std::vector<node> new_ngb(new_degree);
+                                                                    for (int i = 0; i < new_degree; i++) {
+                                                                            new_ngb[i] = ngb[i];
+                                                                            
+                                                                    }
+                                                                    result.swapNeighborhood(v, new_ngb, empty, false);
+                                                            }
+                                                            else
+                                                                    result.swapNeighborhood(v, ngb, empty, false);
+                                                    }
+                                                    // just copy previous adj
+                                                    
+                                                    else {
+                                                            INFO("** ***** NO MERGING ", v);
+                                                            std::cout << "[";
+                                                            for (int i = 0; i < ngb.size(); i++) {
+                                                                    std::cout << ngb[i] << " ";
+                                                            }
+                                                            
+                                                            std::cout << "]" << std::endl;
+                                                            result.swapNeighborhood(v, ngb, empty, false);
+
+                                                    }
+                                                    
+
+                                            });
+                return result.toGraph(false,true);
+                                                            
+        }
+        
         // void DynTriangleCounting::edgeInsertionSorted(const std::vector<GraphEvent>& batch) {
                 
         //         // construct G'
