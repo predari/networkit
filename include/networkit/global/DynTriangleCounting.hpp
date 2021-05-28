@@ -48,8 +48,7 @@ public:
         void edgeInsertion(const std::vector<GraphEvent> &batch);
         void edgeDeletion(const std::vector<GraphEvent> &batch);
 
-        Graph edgeInsertionSorted(const Graph & ugraph);
-        Graph edgeDeletionSorted(const Graph & ugraph);
+
         /**
          * Updates the total number of triangles in G after a batch of updates.
          *
@@ -101,6 +100,7 @@ public:
 private:
 
         count bsearch_intersection( node u, node v, const std::vector<node> & u_adj, count u_deg);
+        
         count sorted_intersection( node u, const std::vector<node> & u_adj, count u_deg,
                                    node v,const std::vector<node> & v_adj, count v_deg, double m);
         // consider call by ref for adj_inG and adj_inB
@@ -112,6 +112,10 @@ private:
                               const std::vector<node> & adj_inB, const count deg_inB);
 
         void countUpdateTriangles(const Graph &ugraph, bool insertion);
+
+        Graph edgeInsertionSorted(const Graph & ugraph);
+        
+        Graph edgeDeletionSorted(const Graph & ugraph);
 
         // pointer to new graph
         Graph *G;
@@ -389,6 +393,13 @@ private:
                 while (b < deg_inB) {
                         b++;
                 }
+                index r = k;
+                // erasing unnecessary elements
+                while (r < deg_inG) {
+                        adj_inG.pop_back();
+                        r++;
+                }
+                
                 return k;
         }
         
@@ -500,8 +511,6 @@ private:
                                                             //         std::cout << ngb[i] << " ";
                                                             // }
                                                             // std::cout << "]" << std::endl;
-
-
                                                             result.swapNeighborhood(v, ngb, empty, false);
                                                     }
                                             });
@@ -541,7 +550,6 @@ private:
                                                     // for (int i = 0; i < ngb.size(); i++) {
                                                     //         std::cout << ngb[i] << " ";
                                                     // }
-                                                    
                                                     // std::cout << "]" << std::endl;
 
                                                    
@@ -565,32 +573,11 @@ private:
                                                             //         std::cout << ngb[i] << " ";
                                                             // }
                                                             // std::cout << "]" << std::endl;
-                                                            
-                                                            assert(new_degree <= ngb.size());
-                                                            if (new_degree < ngb.size()) {
-                                                                    std::vector<node> new_ngb(new_degree);
-                                                                    for (int i = 0; i < new_degree; i++) {
-                                                                            new_ngb[i] = ngb[i];
-                                                                            
-                                                                    }
-                                                                    result.swapNeighborhood(v, new_ngb, empty, false);
-                                                            }
-                                                            else
-                                                                    result.swapNeighborhood(v, ngb, empty, false);
+                                                            assert(new_degree == ngb.size());
                                                     }
                                                     // just copy previous adj
-                                                    
-                                                    else {
-                                                            // INFO("** ***** NO MERGING ", v);
-                                                            // std::cout << "[";
-                                                            // for (int i = 0; i < ngb.size(); i++) {
-                                                            //         std::cout << ngb[i] << " ";
-                                                            // }
-                                                            // std::cout << "]" << std::endl;
-                                                            result.swapNeighborhood(v, ngb, empty, false);
-
-                                                    }
-                                                    
+                                                    // better move instead of swap
+                                                    result.swapNeighborhood(v, ngb, empty, false);
 
                                             });
                 return result.toGraph(false,true);
