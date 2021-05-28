@@ -86,6 +86,23 @@ void GraphBuilder::addHalfInEdge(node u, node v, edgeweight ew) {
     }
 }
 
+void GraphBuilder::assignNeighborhood(node u, std::vector<node> &neighbours,
+                                      std::vector<edgeweight> &weights,
+                                      bool selfloop) {
+    if (weighted)
+        assert(neighbours.size() == weights.size());
+    outEdges[u] = neighbours;
+    if (weighted) {
+        outEdgeWeights[u] = weights;
+    }
+
+    if (selfloop) {
+#pragma omp atomic
+        selfloops++;
+    }
+}
+
+        
 void GraphBuilder::swapNeighborhood(node u, std::vector<node> &neighbours,
                                     std::vector<edgeweight> &weights,
                                     bool selfloop) {

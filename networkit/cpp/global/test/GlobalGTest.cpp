@@ -155,8 +155,6 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     EXPECT_EQ(1, triangles);
     INFO(" ** ***** Triangles = ", triangles, ".");
 
-    
-
     std::vector<GraphEvent> addition;
     addition.push_back(GraphEvent(GraphEvent::EDGE_ADDITION, 0, 2));
     addition.push_back(GraphEvent(GraphEvent::EDGE_ADDITION, 0, 3));
@@ -164,14 +162,12 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     addition.push_back(GraphEvent(GraphEvent::EDGE_ADDITION, 2, 1));
     
     INFO(" ** DYNAMIC ALGO on updated G_I = {G}U{G'}.");
-    //dyntc.edgeInsertion(addition);
     assert(dyntc.checkSorted());
     dyntc.updateBatch(addition);
     double final_triangles = dyntc.getTriangleCount();
     EXPECT_EQ(dyntc.getNewTriangles(), (final_triangles - triangles));
     EXPECT_EQ(4, final_triangles);
-    INFO(" ** ***** Triangles  = ", final_triangles, " = (", triangles, " + ",
-         dyntc.getNewTriangles(), ")." );
+    INFO(" ** ***** Triangles  = ", final_triangles, " = (", triangles, " + ", dyntc.getNewTriangles(), ")." );
     
     /* checking triangle counting score calculation*/
     std::vector<double> t_score = dyntc.getTriangleScores();
@@ -181,8 +177,6 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
             t_t += t_score[u];
     EXPECT_EQ(t_t/3, final_triangles);
 
-    INFO(" ** ***** TEST ");
-    INFO(" ** ***** G = (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
     INFO(" ** STATIC ALGO on G_I. ");
     dyntc.run();
     double static_triangles = dyntc.getTriangleCount();
@@ -218,9 +212,7 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     G.addEdge(0, 2);
     G.addEdge(0, 3);
     G.addEdge(3, 2);
-    G.addEdge(2, 1);
-
-    
+    G.addEdge(2, 1);    
 
     DynTriangleCounting dyntc(G);
     INFO(" ** STATIC ALGO on G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
@@ -236,7 +228,6 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
             t_t += t_score[u];
     EXPECT_EQ(t_t/3, triangles);
    
-    
     std::vector<GraphEvent> deletion;
     deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 0, 2));
     deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 0, 3));
@@ -244,13 +235,11 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 2, 1));
     
 
-    //dyntc.edgeDeletion(deletion);
     assert(dyntc.checkSorted());
     INFO(" ** DYNAMIC ALGO on updated G_D = {G}\\cap{G'}.");
     dyntc.updateBatch(deletion);
     double final_triangles = dyntc.getTriangleCount();
-    INFO(" ** ***** Triangles  = ", final_triangles, " = (", triangles, " - ",
-         dyntc.getNewTriangles(), ")." );
+    INFO(" ** ***** Triangles  = ", final_triangles, " = (", triangles, " - ", dyntc.getNewTriangles(), ")." );
     EXPECT_EQ(1, final_triangles);
     EXPECT_EQ(3, dyntc.getNewTriangles()); 
 
@@ -276,14 +265,15 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
 
         
 
-TEST_F(GlobalGTest, testDynTriangleCounting) {
+TEST_F(GlobalGTest, testDynTriangleCountingT) {
 
         SNAPGraphReader reader;
         Graph G = reader.read("../input/wiki-Vote.txt");
+        //Graph G = reader.read("../input/ca-HepPh.txt");
         Aux::Timer timer;
 
         INFO(" ** STATIC ALGO on final G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        DynTriangleCounting dyntc(G);
+        DynTriangleCounting dyntc(G,true); // true means you have to call edgeInsertion
         timer.start();
         dyntc.run();
         timer.stop();
@@ -295,7 +285,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
 
         
 	// Make multiple batches of removed edges
-        count numBatches = 5;
+        count numBatches = 20;
         count numEdges = 100;
         count dupEdges = 10;
         //count totalEdges = numEdges + dupEdges;
@@ -341,7 +331,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         for(unsigned i = 0; i < numBatches; ++i) {
                 assert(i < addition.size());
                 timer.start();
-                //dyntc.edgeInsertion(addition[i]);
+                dyntc.edgeInsertion(addition[i]);
                 timer.stop();
                 if(!dyntc.checkSorted())
                         WARN(" ** ***** GRAPH IS NOT SORTED!");
@@ -366,6 +356,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         
         INFO(" ** STATIC_TIME   =  ", static_time );
         INFO(" ** DYNAMIC_TIME  =  ", total_update_time + starting_time );
+        INFO(" **  = ( ", total_update_time, " + ", starting_time, " )" );
         
 
         std::vector<double> t_score = dyntc.getTriangleScores();
@@ -382,10 +373,11 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
 
 
 
-TEST_F(GlobalGTest, testDynTriangleCountingT) {
+TEST_F(GlobalGTest, testDynTriangleCounting) {
 
         SNAPGraphReader reader;
         Graph G = reader.read("../input/wiki-Vote.txt");
+        //Graph G = reader.read("../input/ca-HepPh.txt");
         Aux::Timer timer;
 
         INFO(" ** STATIC ALGO on final G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
@@ -401,7 +393,7 @@ TEST_F(GlobalGTest, testDynTriangleCountingT) {
 
         
 	// Make multiple batches of removed edges
-        count numBatches = 5;
+        count numBatches = 20;
         count numEdges = 100;
         count dupEdges = 10;
         //count totalEdges = numEdges + dupEdges;
@@ -446,13 +438,8 @@ TEST_F(GlobalGTest, testDynTriangleCountingT) {
         double total_update_time = 0.0;
         for(unsigned i = 0; i < numBatches; ++i) {
                 assert(i < addition.size());
-                timer.start();
-                //dyntc.edgeInsertion(addition[i]);
-                timer.stop();
                 if(!dyntc.checkSorted())
                         WARN(" ** ***** GRAPH IS NOT SORTED!");
-                INFO(" ** ***** Time to insert batch[",i,"] =  ", timer.elapsedMicroseconds() / 1e6, " secs.");
-                total_update_time += timer.elapsedMicroseconds() / 1e6;
                 timer.start();
                 dyntc.updateBatch(addition[i]);
                 timer.stop();       
@@ -472,6 +459,7 @@ TEST_F(GlobalGTest, testDynTriangleCountingT) {
         
         INFO(" ** STATIC_TIME   =  ", static_time );
         INFO(" ** DYNAMIC_TIME  =  ", total_update_time + starting_time );
+        INFO(" **  = ( ", total_update_time, " + ", starting_time, " )" );
         
 
         std::vector<double> t_score = dyntc.getTriangleScores();
