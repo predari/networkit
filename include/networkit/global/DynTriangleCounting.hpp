@@ -41,12 +41,26 @@ public:
                   t_t(0.0), o_t(0.0), graphAlreadyUpdated(graphAlreadyUpdated) {
         }
         
+        /** 
+         * Runs the static algorithm for computing triangle in a graph 
+         */
         void run() override;
 
         
-
-        // tmp version for inserting edges and sorting afterwards
+        /**
+         * Inserts edges following a dynamic batch update.
+         * The method includes sorting of the graph edges after insertion.
+         *
+         * @param batch A vector of edge modification events.
+         */
         void edgeInsertion(const std::vector<GraphEvent> &batch);
+
+        /**
+         * Deletes edges following a dynamic batch update.
+         * The method includes sorting of the graph edges after deletion.
+         *
+         * @param batch A vector of edge modification events.
+         */
         void edgeDeletion(const std::vector<GraphEvent> &batch);
 
 
@@ -70,18 +84,22 @@ public:
         }
 
         /**
-         * Get number of triangles
+         * Get total number of triangles
          */
         count getTriangleCount() {
                 assureFinished();
                 return t_t;
         }
-
+        /**
+         * Get new triangles 
+         */
         count getNewTriangles() {
                 assureFinished();
                 return abs(t_t-o_t);
         }
-        
+        /**
+         * Compute total number of triangles
+         */
         count computeTriangleCount() {
                 t_t = G->parallelSumForNodes([&](node u) {
                                                      return TrianglesPerNode[u];
@@ -90,11 +108,19 @@ public:
                 t_t = t_t/3;
         }
         
-
+        /**
+         * Get the triangle count score per node
+         */
+        
         std::vector<double> getTriangleScores() {
                 assureFinished();
                 return TrianglesPerNode;
         }
+
+        /**
+         * Check if graph is sorted
+         */
+        
         bool checkSorted(const Graph * G1);
 
         
@@ -167,9 +193,14 @@ private:
                 
                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
                 /* sort edge lists */
-                // TODO: remove it from here. Assume that graph input is sorted
-                G->sortEdges();
-                INFO("** ***** SORTING GRAPH *****");
+                // Graph needs to be sorted. Make the assumption upon calling method.
+                if (!checkSorted(NULL)) {
+                        G->sortEdges();
+                        INFO("** ***** SORTING GRAPH *****");
+                }
+                else {
+                        INFO("** ***** GRAPH ALREADY SORTED UPON RUN *****");
+                }
                 /* copy edge lists */ 
                 G->parallelForNodes([&](node u) {
                                             edges[u].reserve(G->degree(u));
@@ -527,8 +558,11 @@ private:
                                                        node v, const std::vector<node> & v_adj, count v_deg, double m) {
                 count triangles = 0;
                 index i = 0, j = 0;
-                assert(u_adj.size() <= u_deg);
-                assert(v_adj.size() <= v_deg);
+                assert( u_adj.size() == u_deg );
+                assert( v_adj.size() == v_deg );
+
+                //assert(u_deg <= u_adj.size());
+                //assert(v_deg <= v_adj.size());
 
                 // std::cout << " e: ( " << u << ", " << v << " ) --> list ( [";
                 // for (int k = 0; k < u_deg; k++)
@@ -849,19 +883,26 @@ private:
                 for(auto e : batch){
                         G->addEdge(e.u, e.v);
                 }
-                G->sortEdges();
-                INFO("** ***** SORTING GRAPH *****");
-
-                
+                if(!checkSorted(NULL)) {
+                        G->sortEdges();
+                        INFO("** ***** SORTING GRAPH *****");
+                }
+                else {
+                        INFO("** ***** NO NEED TO SORT AFTER INSERTION *****");
+                }
         }
 
         void DynTriangleCounting::edgeDeletion(const std::vector<GraphEvent>& batch) {
                 for(auto e : batch){
                         G->removeEdge(e.u, e.v);
                 }
-                G->sortEdges();
-                INFO("** ***** SORTING GRAPH *****");
-                
+                if(!checkSorted(NULL)) {
+                        G->sortEdges();
+                        INFO("** ***** SORTING GRAPH *****");
+                }
+                else {
+                        INFO("** ***** NO NEED TO SORT AFTER DELETION *****");
+                }
         }
 
         
