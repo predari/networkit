@@ -130,6 +130,11 @@ private:
         
         count sorted_intersection( node u, const std::vector<node> & u_adj, count u_deg,
                                    node v,const std::vector<node> & v_adj, count v_deg, double m);
+        
+        count intersectionCount( node u, std::vector<node> & u_adj, bool u_red,
+                                 node v, std::vector<node> & v_adj, bool v_red, double m);
+        
+        
         // consider call by ref for adj_inG and adj_inB
         count do_merge_insert(const std::vector<node> adj_inG, const count deg_inG,
                               const std::vector<node> adj_inB, const count deg_inB,
@@ -264,19 +269,12 @@ private:
                                                              });
                                     });
                                 
-                // create local complete and reduced copies for update graph
+                // create local complete copies for update graph
                 std::vector<std::vector<node> > edges2(ugraph.upperNodeIdBound());
-                std::vector<std::vector<node> > red_edges2(ugraph.upperNodeIdBound());
-                std::vector<node> reduced_degree2(ugraph.upperNodeIdBound(), 0);
-
+                // maybe better to go through edges and lock access on nodes to create complete copies
                 ugraph.parallelForNodes([&](node u) {
                                                 edges2[u].reserve(ugraph.degree(u));
-                                                red_edges2[u].reserve(ugraph.degree(u));
                                                 ugraph.forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                             if (v < u) {
-                                                                                     red_edges2[u].emplace_back(v);
-                                                                                     reduced_degree2[u]++;
-                                                                             }
                                                                              edges2[u].emplace_back(v);
                                                                      });
                                         });
@@ -416,153 +414,65 @@ private:
                 }
 
 
-                // create reduced copies for updated G
-                std::vector<std::vector<node> > red_edges(G->upperNodeIdBound());
-                std::vector<node> reduced_degree(G->upperNodeIdBound(), 0);
-                G->parallelForNodes([&](node u) {
-                                            red_edges[u].reserve(G->degree(u));
-                                            G->forEdgesOf(u, [&](node, node v, edgeid) {
-                                                                     // do not loop over after first v < u
-                                                                     if (v < u) {
-                                                                             red_edges[u].emplace_back(v);
-                                                                             reduced_degree[u]++;        
-                                                                     } else return;
-                                                             });
-                                    });
+                // // create reduced copies for updated G
+                // std::vector<std::vector<node> > red_edges(G->upperNodeIdBound());
+                // std::vector<node> reduced_degree(G->upperNodeIdBound(), 0);
+                // G->parallelForNodes([&](node u) {
+                //                             red_edges[u].reserve(G->degree(u));
+                //                             G->forEdgesOf(u, [&](node, node v, edgeid) {
+                //                                                      // do not loop over after first v < u
+                //                                                      if (v < u) {
+                //                                                              red_edges[u].emplace_back(v);
+                //                                                              reduced_degree[u]++;        
+                //                                                      } else return;
+                //                                              });
+                //                     });
 
-                // INFO(" ** ***** PRINTIG ***** ");
-                // INFO(" ** ***** EDGES ***** ");
-                // G->forNodes([&](node u) {
-                //                     std::cout << u << " [";
-                //                     for (int i = 0; i < edges[u].size(); i++)
-                //                             std::cout << edges[u][i] << " ";
-                //                     std::cout << "]" << std::endl;
-                //             });
-                // INFO(" ** ***** RED_EDGES ***** ");
-                // G->forNodes([&](node u) {
-                //                     std::cout << u << " [";
-                //                     for (int i = 0; i < red_edges[u].size(); i++)
-                //                             std::cout << red_edges[u][i] << " ";
-                //                     std::cout << "]" << std::endl;
-                //             });
-                
-
-
-
-                // INFO(" ** ***** UGRAPH EDGES ***** ");
-                // ugraph.forNodes([&](node u) {
-                //                         std::cout << u << " [";
-                //                         for (int i = 0; i < edges2[u].size(); i++)
-                //                                 std::cout << edges2[u][i] << " ";
-                //                         std::cout << "]" << std::endl;
-                //                 });
-                // INFO(" ** ***** UGRAPH RED_EDGES ***** ");
-                // ugraph.forNodes([&](node u) {
-                //                         std::cout << u << " [";
-                //                         for (int i = 0; i < red_edges2[u].size(); i++)
-                //                                 std::cout << red_edges2[u][i] << " ";
-                //                         std::cout << "]" << std::endl;
-                //                 });
-
-                
                 ugraph.parallelForEdges([&](node u, node v) {
-                                                
+
                                                 // work on updated graph only
-                                                sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), mtype1); 
+                                                intersectionCount(u, edges[u], false, v, edges[v], false, mtype1); 
                                                 // work on updated and update graph
-                                                sorted_intersection(u, red_edges[u], reduced_degree[u],
-                                                                    v, edges2[v], ugraph.degree(v), mtype2);
-                                                sorted_intersection(v, red_edges[v], reduced_degree[v],
-                                                                    u, edges2[u], ugraph.degree(u), mtype2);
-                                                // work on update graph only
-                                                //if ( reduced_degree2[u] && reduced_degree2[v] )
-                                                sorted_intersection(u, red_edges2[u], reduced_degree2[u],
-                                                                    v, red_edges2[v], reduced_degree2[v], mtype3);
+                                                intersectionCount(u, edges[u], true, v, edges2[v], false, mtype2);
+                                                intersectionCount(v, edges[v], true, u, edges2[u], false, mtype2);
+                                                // // work on update graph only
+                                                intersectionCount(u, edges2[u], true, v, edges2[v], true, mtype3); 
+
+
+                                                // intersectionCount(u, red_edges[u], false, v, edges2[v], false, mtype2);
+                                                // intersectionCount(v, red_edges[v], false, u, edges2[u], false, mtype2);
+                                                // intersectionCount(u, red_edges2[u], false, v, red_edges2[v], false, mtype3);
+                                                
+                                            
+                                                
+                                                // // work on updated graph only
+                                                // sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), mtype1); 
+                                                // // work on updated and update graph
+                                                // sorted_intersection(u, red_edges[u], reduced_degree[u],
+                                                //                     v, edges2[v], ugraph.degree(v), mtype2);
+                                                // sorted_intersection(v, red_edges[v], reduced_degree[v],
+                                                //                     u, edges2[u], ugraph.degree(u), mtype2);
+                                                // // work on update graph only
+                                                // //if ( reduced_degree2[u] && reduced_degree2[v] )
+                                                // sorted_red_intersection(u, red_edges2[u], reduced_degree2[u],
+                                                //                     v, red_edges2[v], reduced_degree2[v], mtype3);
                                         });
                 
-                //countUpdateTriangles(ugraph,insertion);
                 computeTriangleCount();
         }
 
         
 
 
-        // void DynTriangleCounting::updateBatch(const std::vector<GraphEvent>& batch) {
-
-        //         o_t = t_t;
-        //         bool insertion = true;
-        //         if (batch[0].type == GraphEvent::EDGE_REMOVAL)
-        //                 insertion = false;
-        //         else if (batch[0].type != GraphEvent::EDGE_ADDITION)
-        //                 throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
-                
-                
-        //         Graph ugraph = Graph(G->upperNodeIdBound());
-        //         for(auto e : batch){
-        //                 // check that all events of the batch are of the same type.
-        //                 if (e.type == GraphEvent::EDGE_ADDITION && !insertion) {
-        //                         throw std::runtime_error("All Events of an insert batch should be of type EDGE_ADDITION.");
-        //                 } else if (e.type == GraphEvent::EDGE_REMOVAL && insertion) {
-        //                         throw std::runtime_error("All Events of a remove batch should be of type EDGE_REMOVAL.");
-
-        //                 }
-        //                 if (e.type != GraphEvent::EDGE_ADDITION && e.type != GraphEvent::EDGE_REMOVAL) {
-        //                         throw std::runtime_error("Event type not allowed. Edge insertions or deletions only.");
-        //                 }
-
-
-        //                 ugraph.addEdge(e.u, e.v);
-        //         }
-
-        //         ugraph.sortEdges();
-        //         INFO("** ***** SORTING BATCH *****");
-
-        //         Aux::Timer timer;
-        //         if (graphAlreadyUpdated) INFO("** ***** GRAPH ALREADY UPDATED *****");
-        //         else {
-
-        //                 timer.start();
-        //                 if (insertion) {
-        //                         Graph GI = edgeInsertionSorted(ugraph);
-        //                         U = std::move(GI);
-        //                         INFO(" ** ***** INSERTION RUN SUCCESSFULLY ***** ");
-        //                         //INFO(" ** ***** GI  = (" , GI.numberOfNodes() , ", " , GI.numberOfEdges() , ")");
-                                
-        //                 } else {
-        //                         Graph GD = edgeDeletionSorted(ugraph);
-        //                         U = std::move(GD);
-        //                         INFO(" ** ***** DELETION RUN SUCCESSFULLY ***** ");
-        //                         //INFO(" ** ***** GD  = (" , GD.numberOfNodes() , ", " , GD.numberOfEdges() , ")");
-        //                 }
-        //                 G = &U;
-        //                 timer.stop();
-        //                 INFO(" ** ***** Time to insert batch =  ", timer.elapsedMicroseconds() / 1e6, " secs.");  
-        //         }
-        //         // INFO(" ** ***** AFTER GRAPH ASSIGNMENT ***** ");
-        //         // INFO(" ** ***** G = (" , G->numberOfNodes() , ", " , G->numberOfEdges() , ")");
-        //         // G->forNodes([&](node u) {
-        //         //                     G->forEdgesOf(u, [&](node, node v, edgeid) {
-        //         //                                             std::cout << " " << v;
-        //         //                                     });
-        //         //                     std::cout << std::endl;
-        //         //             });
-                
-                
-                
-        //         countUpdateTriangles(ugraph,insertion);
-        //         computeTriangleCount();
-        // }
-
 
         count DynTriangleCounting::sorted_intersection(node u, const std::vector<node> & u_adj, count u_deg,
                                                        node v, const std::vector<node> & v_adj, count v_deg, double m) {
                 count triangles = 0;
                 index i = 0, j = 0;
-                assert( u_adj.size() == u_deg );
-                assert( v_adj.size() == v_deg );
-
-                //assert(u_deg <= u_adj.size());
-                //assert(v_deg <= v_adj.size());
+                //assert( u_adj.size() == u_deg );
+                //assert( v_adj.size() == v_deg );
+                assert(u_deg <= u_adj.size());
+                assert(v_deg <= v_adj.size());
 
                 // std::cout << " e: ( " << u << ", " << v << " ) --> list ( [";
                 // for (int k = 0; k < u_deg; k++)
@@ -593,8 +503,55 @@ private:
         }
 
 
+        count DynTriangleCounting::intersectionCount( node u, std::vector<node> & u_adj, bool u_red,
+                                 node v, std::vector<node> & v_adj, bool v_red, double m) {
+
+                if ( u_adj.empty() || v_adj.empty() ) return 0;
+                count triangles = 0;
+                node i = 0, j = 0;
+                count u_deg, v_deg;
+                node * u_ptr;
+                node * v_ptr;
+                (u_red) ? u_deg = u : u_deg = u_adj.size();
+                (v_red) ? v_deg = v : v_deg = v_adj.size();
+                (u_red) ? u_ptr = &u_adj[i] : u_ptr = &i;
+                (v_red) ? v_ptr = &v_adj[j] : v_ptr = &j; 
 
 
+                // std::cout << " e: ( " << u << ", " << v << " ) --> list ( [";
+                // for (int k = 0; k < u_deg; k++)
+                //         std::cout << u_adj[k] << " ";
+                // std::cout << "] , [";
+                // for (int k = 0; k < v_deg; k++)
+                //         std::cout << v_adj[k] << " ";
+                // std::cout << "]) "<<  std::endl;
+                
+                while( ( (*u_ptr < u_deg) && (i < u_adj.size()) ) && ( (*v_ptr < v_deg) &&  (j < v_adj.size()) ) ) {
+                        int comp;
+                        comp = u_adj[i] - v_adj[j];
+                        triangles += (comp == 0);
+                        if (comp == 0) {
+#pragma omp atomic
+                                TrianglesPerNode[u_adj[i]] += m;
+                        }
+                        i += (comp <= 0);
+                        j += (comp >= 0);
+                        if(u_red) u_ptr = &u_adj[i];
+                        if(v_red) v_ptr = &v_adj[j]; 
+                        // std::cout << " u_ptr = " << *u_ptr << "\t i = " << i << std::endl;
+                        // make sure i,j dont surpass limits of u_adj and v_adj -> seg fault 
+                        // if( (i >= u_adj.size() && u_red) || (j >= v_adj.size() && v_red)) {
+                        //         break;
+                        // }
+                }
+#pragma omp atomic
+                TrianglesPerNode[u] += m * triangles;
+#pragma omp atomic
+                TrianglesPerNode[v] += m * triangles;
+                return triangles;
+        }
+
+        
 
 
 
@@ -643,15 +600,21 @@ private:
                                                                      });
                                         });
 
+                
                 ugraph.parallelForEdges([&](node u, node v) {
                                                 
                                                 // work on updated graph only
-                                                sorted_intersection(u,edges[u], G->degree(u), v, edges[v], G->degree(v), mtype1); 
+                                                sorted_intersection(u, edges[u], G->degree(u), v, edges[v], G->degree(v), mtype1); 
                                                 // work on updated and update graph
+                                                // sorted_intersection(u, red_edges[u], reduced_degree[u],
+                                                //                     v, edges2[v], ugraph.degree(v), mtype2);
+                                                // sorted_intersection(v, red_edges[v], reduced_degree[v],
+                                                //                     u, edges2[u], ugraph.degree(u), mtype2);
                                                 sorted_intersection(u, red_edges[u], reduced_degree[u],
                                                                     v, edges2[v], ugraph.degree(v), mtype2);
                                                 sorted_intersection(v, red_edges[v], reduced_degree[v],
                                                                     u, edges2[u], ugraph.degree(u), mtype2);
+  
                                                 // work on update graph only
                                                 //if ( reduced_degree2[u] && reduced_degree2[v] )
                                                 sorted_intersection(u, red_edges2[u], reduced_degree2[u],
