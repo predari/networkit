@@ -48,27 +48,12 @@ public:
 
         
         /**
-         * Inserts edges following a dynamic batch update.
-         * The method includes sorting of the graph edges after insertion.
+         * Updates the total number of triangles in G after a batch of updates 
+         * and merges also the dynamic update into the original graph.
          *
          * @param batch A vector of edge modification events.
          */
-        void edgeInsertion(const std::vector<GraphEvent> &batch);
 
-        /**
-         * Deletes edges following a dynamic batch update.
-         * The method includes sorting of the graph edges after deletion.
-         *
-         * @param batch A vector of edge modification events.
-         */
-        void edgeDeletion(const std::vector<GraphEvent> &batch);
-
-
-        /**
-         * Updates the total number of triangles in G after a batch of updates.
-         *
-         * @param batch A vector of edge modification events.
-         */
         void updateBatch(const std::vector<GraphEvent> &batch) override;
 
 
@@ -100,7 +85,7 @@ public:
         /**
          * Compute total number of triangles
          */
-        count computeTriangleCount() {
+        void computeTriangleCount() {
                 t_t = G->parallelSumForNodes([&](node u) {
                                                      return TrianglesPerNode[u];
                                              });
@@ -128,9 +113,6 @@ private:
 
         
         count intersectionCountU( node u, std::vector<node> & u_adj, bool u_red,
-                                  node v, std::vector<node> & v_adj, bool v_red, double m);
-
-        count intersectionCountO( node u, std::vector<node> & u_adj, bool u_red,
                                   node v, std::vector<node> & v_adj, bool v_red, double m);
         
         count intersectionCountR(std::vector<node> & u_adj,std::vector<node> & v_adj);
@@ -307,7 +289,7 @@ private:
                         G = &U;
 
                         timer.stop();
-                        INFO(" ** ***** Time to insert batch =  ", timer.elapsedMicroseconds() / 1e6, " secs.");  
+                        //INFO(" ** ***** Time to insert batch =  ", timer.elapsedMicroseconds() / 1e6, " secs.");  
                 }
                 
                 // setting parameters for update triangle count
@@ -324,10 +306,10 @@ private:
 
                 ugraph.parallelForEdges([&](node u, node v) {
 
-                                                intersectionCountO(u, edges[u], false, v, edges[v], false, mtype1); 
-                                                intersectionCountO(u, edges[u], true, v, edges2[v], false, mtype2);
-                                                intersectionCountO(v, edges[v], true, u, edges2[u], false, mtype2);
-                                                intersectionCountO(u, edges2[u], true, v, edges2[v], true, mtype3); 
+                                                intersectionCountU(u, edges[u], false, v, edges[v], false, mtype1); 
+                                                intersectionCountU(u, edges[u], true, v, edges2[v], false, mtype2);
+                                                intersectionCountU(v, edges[v], true, u, edges2[u], false, mtype2);
+                                                intersectionCountU(u, edges2[u], true, v, edges2[v], true, mtype3); 
                                         });
                 
                 computeTriangleCount();
@@ -359,54 +341,6 @@ private:
         
         
 
-        count DynTriangleCounting::intersectionCountO( node u, std::vector<node> & u_adj, bool u_red,
-                                 node v, std::vector<node> & v_adj, bool v_red, double m) {
-
-                if ( u_adj.empty() || v_adj.empty() ) return 0;
-                count triangles = 0;
-                node i = 0, j = 0;
-                count u_deg, v_deg;
-                node * u_ptr;
-                node * v_ptr;
-                (u_red) ? u_deg = u : u_deg = u_adj.size();
-                (v_red) ? v_deg = v : v_deg = v_adj.size();
-                (u_red) ? u_ptr = &u_adj[i] : u_ptr = &i;
-                (v_red) ? v_ptr = &v_adj[j] : v_ptr = &j; 
-
-
-                // std::cout << " e: ( " << u << ", " << v << " ) --> list ( [";
-                // for (int k = 0; k < u_deg; k++)
-                //         std::cout << u_adj[k] << " ";
-                // std::cout << "] , [";
-                // for (int k = 0; k < v_deg; k++)
-                //         std::cout << v_adj[k] << " ";
-                // std::cout << "]) "<<  std::endl;
-                
-                while( ( (*u_ptr < u_deg) && (i < u_adj.size()) ) && ( (*v_ptr < v_deg) &&  (j < v_adj.size()) ) ) {
-                        int comp;
-                        comp = u_adj[i] - v_adj[j];
-                        triangles += (comp == 0);
-                        if (comp == 0) {
-#pragma omp atomic
-                                TrianglesPerNode[u_adj[i]] += m;
-                        }
-                        i += (comp <= 0);
-                        j += (comp >= 0);
-                        if(u_red) u_ptr = &u_adj[i];
-                        if(v_red) v_ptr = &v_adj[j]; 
-                        // std::cout << " u_ptr = " << *u_ptr << "\t i = " << i << std::endl;
-                        // make sure i,j dont surpass limits of u_adj and v_adj -> seg fault 
-                        // if( (i >= u_adj.size() && u_red) || (j >= v_adj.size() && v_red)) {
-                        //         break;
-                        // }
-                }
-#pragma omp atomic
-                TrianglesPerNode[u] += m * triangles;
-#pragma omp atomic
-                TrianglesPerNode[v] += m * triangles;
-                return triangles;
-        }
-
         
 
 
@@ -415,8 +349,6 @@ private:
 
                 if ( u_adj.empty() || v_adj.empty() ) return 0;
                 
-                //std::cout << " e: ( " << u << ", " << v << " ) --> list ( [";
-
                 if ( (u_red && (u_adj[0] > u))  || (v_red && (v_adj[0] > v)) ) return 0;
                 count triangles = 0;
                 node i = 0;
@@ -426,31 +358,13 @@ private:
                 auto u_t = u_adj.end();
                 auto v_t = v_adj.end();
 
-                // for (std::vector<node>::iterator it = u_s ; it != u_t; ++it) {
-                //         if (u_red && *it > u)
-                //                 break;
-                //         std::cout << *it << " ";
-
-                // }
-                // std::cout << "] , [";
-                // for (std::vector<node>::iterator it = v_s ; it != v_t; ++it) {
-                //         if (v_red && *it > v)
-                //                 break;
-
-                //         std::cout << *it << " ";
-                // }
-                // std::cout << "]) "<<  std::endl;
-                
                 while( (u_s != u_t) && (v_s != v_t ) ) {
                         int comp;
-                        //std::cout << *u_s << " - " << *v_s;
-                        //std::cout << " positions : " << i << ", " <<  j << std::endl;
                         comp = *u_s - *v_s;
                         triangles += (comp == 0);
                         if (comp == 0) {
 #pragma omp atomic
                                 TrianglesPerNode[u_adj[i]] += m;
-                                //std::cout << " adding common element count " << u_adj[i] << std::endl;
                                 
                         }
                         i += (comp <= 0);
@@ -545,34 +459,6 @@ private:
                 return k;
         }
        
-
-
-        
-        void DynTriangleCounting::edgeInsertion(const std::vector<GraphEvent>& batch) {
-                for(auto e : batch){
-                        G->addEdge(e.u, e.v);
-                }
-                if(!checkSorted(NULL)) {
-                        G->sortEdges();
-                        INFO("** ***** SORTING GRAPH *****");
-                }
-                else {
-                        INFO("** ***** NO NEED TO SORT AFTER INSERTION *****");
-                }
-        }
-
-        void DynTriangleCounting::edgeDeletion(const std::vector<GraphEvent>& batch) {
-                for(auto e : batch){
-                        G->removeEdge(e.u, e.v);
-                }
-                if(!checkSorted(NULL)) {
-                        G->sortEdges();
-                        INFO("** ***** SORTING GRAPH *****");
-                }
-                else {
-                        INFO("** ***** NO NEED TO SORT AFTER DELETION *****");
-                }
-        }
 
         count DynTriangleCounting::bsearch_intersection(node u, node v, const std::vector<node> & u_adj, count u_deg) {
         count t = 0;

@@ -111,26 +111,6 @@ TEST_F(GlobalGTest, testToyGraphTwo) {
 
         
 
-TEST_F(GlobalGTest, testTriangleCounting) {
-        SNAPGraphReader reader;
-        Graph G = reader.read("../input/wiki-Vote.txt");
-        
-        Aux::Timer timer;
-        
-        TriangleCounting tc(G);
-        INFO("Running TriangleCounting. ");
-        timer.start();
-        tc.run_seq();
-        timer.stop();
-        
-        count triangles = tc.getTriangleCount()/6;
-        printf("\n%s <%d> %f\n", __FUNCTION__, __LINE__, timer.elapsedMicroseconds() / 1e6);
-        printf("Triangles in original graph = %ld\n", triangles);
-        EXPECT_EQ(608389, triangles); // for wiki-Vote.txt
-        
-        
-}
-
 
 TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
 
@@ -171,19 +151,11 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
     EXPECT_EQ(4, final_triangles);
     INFO(" ** ***** Triangles  = ", final_triangles, " = (", triangles, " + ", dyntc.getNewTriangles(), ")." );
     
-    /* checking triangle counting score calculation*/
-    std::vector<double> t_score = dyntc.getTriangleScores();
-    assert(t_score.size() == G.numberOfNodes());
-    double t_t = 0;
-    for (node u = 0; u < G.upperNodeIdBound(); u++)
-            t_t += t_score[u];
-    EXPECT_EQ(t_t/3, final_triangles);
 
     INFO(" ** STATIC ALGO on G_I. ");
     dyntc.run();
     double static_triangles = dyntc.getTriangleCount();
     EXPECT_EQ(static_triangles, final_triangles);
-    EXPECT_EQ(0, dyntc.getNewTriangles()); 
     INFO("** ***** Triangles = ", static_triangles, ".");
     
 }        
@@ -223,13 +195,8 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     EXPECT_EQ(4, triangles);
     INFO(" ** ***** Triangles = ", triangles, ".");
     
-    std::vector<double> t_score = dyntc.getTriangleScores();
-    assert(t_score.size() == G.numberOfNodes());
-    double t_t = 0;
-    for (node u = 0; u < G.upperNodeIdBound(); u++)
-            t_t += t_score[u];
-    EXPECT_EQ(t_t/3, triangles);
-   
+
+    
     std::vector<GraphEvent> deletion;
     deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 0, 2));
     deletion.push_back(GraphEvent(GraphEvent::EDGE_REMOVAL, 0, 3));
@@ -245,19 +212,14 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
     EXPECT_EQ(1, final_triangles);
     EXPECT_EQ(3, dyntc.getNewTriangles()); 
 
-    t_score = dyntc.getTriangleScores();
-    assert(t_score.size() == G.numberOfNodes());
-    t_t = 0;
-    for (node u = 0; u < G.upperNodeIdBound(); u++) 
-            t_t += t_score[u];
-    EXPECT_EQ(t_t/3, final_triangles);
+
+
     
     /* run static algorithm on the new graph */
     INFO(" ** STATIC ALGO on G_D.");
     dyntc.run();
     double static_triangles = dyntc.getTriangleCount();
     EXPECT_EQ(static_triangles, final_triangles);
-    EXPECT_EQ(0, dyntc.getNewTriangles());
     INFO("** ***** Triangles = ", static_triangles, ".");
     
 }        
@@ -267,196 +229,18 @@ TEST_F(GlobalGTest, testToyDynTriangleCountingD) {
 
         
 
-TEST_F(GlobalGTest, testDynTriangleCountingT) {
 
-        SNAPGraphReader reader;
-        Graph G = reader.read("../input/wiki-Vote.txt");
-        //Graph G = reader.read("../input/ca-HepPh.txt");
-        Aux::Timer timer;
-
-        INFO(" ** STATIC ALGO on final G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        DynTriangleCounting dyntc(G,true); // true means you have to call edgeInsertion
-        timer.start();
-        dyntc.run();
-        timer.stop();
-        
-        double triangles = dyntc.getTriangleCount();
-        EXPECT_EQ(608389, triangles); // for wiki-Vote.txt
-        INFO(" ** ***** Triangles  = ", triangles, " in ", timer.elapsedMicroseconds() / 1e6, " secs.");
-        double static_time = timer.elapsedMicroseconds() / 1e6;
-
-        
-	// Make multiple batches of removed edges
-        count numBatches = 20;
-        count numEdges = 100;
-        count dupEdges = 10;
-        //count totalEdges = numEdges + dupEdges;
-        std::vector<std::vector<GraphEvent>> addition(numBatches);
-        
-        for (count i = 0; i < numBatches; i++) {
-                
-                for (count j = 0; j < numEdges; j++) {                        
-                        node u = G.upperNodeIdBound();
-                        node v = G.upperNodeIdBound();
-                        do {
-                                u = GraphTools::randomNode(G);
-                                v = GraphTools::randomNode(G);
-                        } while (!G.hasEdge(u, v) || u == v);
-                        GraphEvent edgeI(GraphEvent::EDGE_ADDITION, u, v);
-                        addition[i].push_back(edgeI);
-                        G.removeEdge(u, v);
-                }
-                // // Add duplicates from beginning of batch
-                // for(unsigned j = 0; j < dupEdges; ++j) {
-                //         assert(j < numEdges);
-                //         auto dupEvent = addition[i][j];
-                //         addition[i].push_back(dupEvent);
-                // }            
-        }
-        
-        INFO(" ** STATIC ALGO on start G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        timer.start();
-        dyntc.run();
-        timer.stop();       
-        double static_triangles = dyntc.getTriangleCount();
-        INFO(" ** ***** Triangles = ", static_triangles, " in ", timer.elapsedMicroseconds() / 1e6, " secs.");
-        double starting_time = timer.elapsedMicroseconds() / 1e6;
-
-        EXPECT_LE(static_triangles, triangles);
-        EXPECT_EQ(0, dyntc.getNewTriangles()); 
-        // TODO: make sure sorting is done only once.
-        // TODO: input should be sorted for edgeInsertionSorted.
-        //G.sortEdges();
-        INFO(" ** DYNAMIC ALGO on updated G_I = {G}U{G'}.");
-        double total_update_triangles = 0;
-        double total_update_time = 0.0;
-        for(unsigned i = 0; i < numBatches; ++i) {
-                assert(i < addition.size());
-                timer.start();
-                dyntc.edgeInsertion(addition[i]);
-                timer.stop();
-                if(!dyntc.checkSorted())
-                        WARN(" ** ***** GRAPH IS NOT SORTED!");
-                INFO(" ** ***** Time to insert batch[",i,"] =  ", timer.elapsedMicroseconds() / 1e6, " secs.");
-                total_update_time += timer.elapsedMicroseconds() / 1e6;
-                timer.start();
-                dyntc.updateBatch(addition[i]);
-                timer.stop();       
-                INFO(" ** ***** Time to update batch[",i,"] = ", timer.elapsedMicroseconds() / 1e6, " secs.");
-                total_update_triangles += dyntc.getNewTriangles();
-                total_update_time += timer.elapsedMicroseconds() / 1e6;
-                
-        }
-
-
-        
-        double final_triangles = dyntc.getTriangleCount();
-        EXPECT_EQ(final_triangles, triangles);        
-        EXPECT_EQ(total_update_triangles, triangles - static_triangles);
-        INFO(" ** ***** Triangles  = ", final_triangles, " = (", static_triangles, " + ",
-             total_update_triangles, ")." );
-        
-        INFO(" ** STATIC_TIME   =  ", static_time );
-        INFO(" ** DYNAMIC_TIME  =  ", total_update_time + starting_time );
-        INFO(" **  = ( ", total_update_time, " + ", starting_time, " )" );
-        
-
-        std::vector<double> t_score = dyntc.getTriangleScores();
-        assert(t_score.size() == G.numberOfNodes());
-        double t_t = 0;
-
-        for (node u = 0; u < G.upperNodeIdBound(); u++) {
-                t_t += t_score[u];
-        }
-        EXPECT_EQ(t_t/3, final_triangles);
-        
-        
-}        
-
-
-
-TEST_F(GlobalGTest, testStaticTriangleCounting) {
-
-        SNAPGraphReader reader;
-        //Graph G = reader.read("../input/wiki-Vote.txt"); // ok
-        //Graph G = reader.read("../input/ca-HepPh.txt"); // no
-        Graph G = reader.read("../input/com-youtube.txt"); // ok
-        //Graph G = reader.read("../input/email-euall.txt"); // no
-        //Graph G = reader.read("../input/soc-epinions.txt"); // ok
-        //Graph G = reader.read("../input/ego-twitter.txt");
-        //METISGraphReader reader;
-        //Graph G = reader.read("../input/celegans_metabolic.graph"); // prob reading 
-        //Graph G = reader.read("../input/PGPgiantcompo.graph"); //ok
-        INFO("graph has ", G.numberOfNodes(), " nodes and ", G.numberOfEdges(), " edges and directed? ", G.isDirected(),
-             " and weighted? ", G.isWeighted());
-        
-        Aux::Timer timer;
-
-
-        timer.start();
-        G.indexEdges();
-        INFO(" ** STATIC-EdgeScore ALGO on final G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        TriangleEdgeScore tes(G);
-        tes.run();
-        std::vector<count> edgeScores2 = tes.scores();
-        double triangles4 = 0;
-        for (count u = 0; u < G.upperEdgeIdBound(); u++) {
-                triangles4 += edgeScores2[u];
-        }
-        timer.stop();
-        INFO(" ** ***** Triangles  = ", triangles4/3, " in ", timer.elapsedMicroseconds() / 1e6, " secs.");
-        
-
-        // AlgebraicTriangleCounting<CSRMatrix> atc(G);
-        // INFO(" ** STATIC-AlgTriCnt ALGO on final G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        // atc.run();
-        // EXPECT_TRUE(atc.hasFinished());
-        // std::vector<count> nodeScores = atc.getScores();
-        // double triangles3 = 0;
-        // for (count u = 0; u < G.upperNodeIdBound(); u++) {
-        //         triangles3 += nodeScores[u];
-        // }
-        // INFO(" ** ***** Triangles  = ", triangles3/3, " ."); 
-
-        
-        INFO(" ** STATIC ALGO on final G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        DynTriangleCounting dyntc(G);
-        timer.start();
-        G.sortEdges();
-        timer.stop();
-        INFO(" ** ***** Sorting took: ", timer.elapsedMicroseconds() / 1e6, " secs.");
-
-        if (dyntc.checkSorted(&G)) {
-                INFO("** ***** GRAPH ALREADY SORTED FOR SECONG ALGO *****");
-        }
-
-        timer.start();
-        dyntc.run();
-        timer.stop();
-        
-        double triangles = dyntc.getTriangleCount();
-        INFO(" ** ***** Triangles  = ", triangles, " in ", timer.elapsedMicroseconds() / 1e6, " secs.");
-        double static_time = timer.elapsedMicroseconds() / 1e6;
-
-        //EXPECT_EQ(triangles3/3, triangles4/3);
-        EXPECT_EQ(triangles4/3, triangles); 
-        
-}
-
-        
 
 
 TEST_F(GlobalGTest, testDynTriangleCounting) {
 
         SNAPGraphReader reader;
-        // Graph G = reader.read("../input/wiki-Vote.txt"); ok
-        // Graph G = reader.read("../input/ca-HepPh.txt");
-        // Graph G = reader.read("../input/com-youtube.txt"); ok
-         Graph G = reader.read("../input/email-euall.txt");
-        //Graph G = reader.read("../input/soc-epinions.txt");
-        //METISGraphReader reader;
-        //Graph G = reader.read("../input/celegans_metabolic.graph");
-        //Graph G = reader.read("../input/PGPgiantcompo.graph");
+        Graph G = reader.read("../input/wiki-Vote.txt"); 
+        // Graph G = reader.read("../input/com-youtube.txt");
+        // Graph G = reader.read("../input/soc-epinions.txt"); 
+        // METISGraphReader reader;
+        // Graph G = reader.read("../input/celegans_metabolic.graph");
+        // Graph G = reader.read("../input/PGPgiantcompo.graph");
         INFO("graph has ", G.numberOfNodes(), " nodes and ", G.numberOfEdges(), " edges. Is directed? ", G.isDirected(),
              ". Is weighted? ", G.isWeighted());
         
@@ -499,7 +283,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
 	// Make multiple batches of removed edges
         count numBatches = 20;
         count numEdges = 100;
-        count dupEdges = 10;
+        //count dupEdges = 10;
         //count totalEdges = numEdges + dupEdges;
         std::vector<std::vector<GraphEvent>> addition(numBatches);
         
@@ -525,6 +309,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         }
 
         INFO(" ** EDGES WERE REMOVED FROM THE GRAPH TO BE RE-INSERTED ");
+
         G.sortEdges();
         INFO(" ** STATIC ALGO on start G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
         timer.start();
@@ -535,7 +320,7 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         double starting_time = timer.elapsedMicroseconds() / 1e6;
 
         EXPECT_LE(static_triangles, triangles);
-        EXPECT_EQ(0, dyntc.getNewTriangles()); 
+
         INFO(" ** DYNAMIC ALGO on updated G_I = {G}U{G'}.");
         double total_update_triangles = 0;
         double total_update_time = 0.0;
@@ -565,129 +350,10 @@ TEST_F(GlobalGTest, testDynTriangleCounting) {
         INFO(" ** DYNAMIC_TIME  =  ", total_update_time + starting_time );
         INFO(" **  = ( ", total_update_time, " + ", starting_time, " )" );
         
-
-        std::vector<double> t_score = dyntc.getTriangleScores();
-        assert(t_score.size() == G.numberOfNodes());
-        double t_t = 0;
-
-        for (node u = 0; u < G.upperNodeIdBound(); u++) {
-                t_t += t_score[u];
-        }
-        EXPECT_EQ(t_t/3, final_triangles);
-        
-        
+ 
 }        
 
 
-
-
-TEST_F(GlobalGTest, testDynTriangleCountingHep) {
-
-        SNAPGraphReader reader;
-        Graph G = reader.read("../input/ca-HepPh.txt");
-        Aux::Timer timer;
-
-        INFO(" ** STATIC-DynTriCnt ALGO on final G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        DynTriangleCounting dyntc(G);
-        timer.start();
-        dyntc.run();
-        timer.stop();
-        
-        double triangles = dyntc.getTriangleCount();
-        INFO(" ** ***** Triangles  = ", triangles, " in ", timer.elapsedMicroseconds() / 1e6, " secs.");
-        double static_time = timer.elapsedMicroseconds() / 1e6;
-
-        TriangleCounting tc(G);
-        INFO(" ** STATIC-TriCnt ALGO on final G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        tc.run_seq();
-        count triangles2 = tc.getTriangleCount()/6;
-        INFO(" ** ***** Triangles  = ", triangles2, " ."); 
-
-        AlgebraicTriangleCounting<CSRMatrix> atc(G);
-        INFO(" ** STATIC-AlgTriCnt ALGO on final G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        atc.run();
-        EXPECT_TRUE(atc.hasFinished());
-        std::vector<count> nodeScores = atc.getScores();
-        double triangles3 = 0;
-        for (count u = 0; u < G.upperNodeIdBound(); u++) {
-                triangles3 += nodeScores[u];
-        }
-        INFO(" ** ***** Triangles  = ", triangles3/3, " ."); 
-        //EXPECT_EQ(triangles1, triangles2);
-        //EXPECT_EQ(triangles3, triangles2);
-
-        
-        
-	// Make multiple batches of removed edges
-        count numBatches = 20;
-        count numEdges = 100;
-        std::vector<std::vector<GraphEvent>> addition(numBatches);
-        
-        for (count i = 0; i < numBatches; i++) {
-                for (count j = 0; j < numEdges; j++) {                        
-                        node u = G.upperNodeIdBound();
-                        node v = G.upperNodeIdBound();
-                        do {
-                                u = GraphTools::randomNode(G);
-                                v = GraphTools::randomNode(G);
-                        } while (!G.hasEdge(u, v) || u == v);
-                        GraphEvent edgeI(GraphEvent::EDGE_ADDITION, u, v);
-                        addition[i].push_back(edgeI);
-                        G.removeEdge(u, v);
-                }
-        }
-        
-        INFO(" ** STATIC ALGO on start G (" , G.numberOfNodes() , ", " , G.numberOfEdges() , ")");
-        timer.start();
-        dyntc.run();
-        timer.stop();       
-        double static_triangles = dyntc.getTriangleCount();
-        INFO(" ** ***** Triangles = ", static_triangles, " in ", timer.elapsedMicroseconds() / 1e6, " secs.");
-        double starting_time = timer.elapsedMicroseconds() / 1e6;
-
-        EXPECT_LE(static_triangles, triangles);
-        EXPECT_EQ(0, dyntc.getNewTriangles()); 
-
-        INFO(" ** DYNAMIC ALGO on updated G_I = {G}U{G'}.");
-        double total_update_triangles = 0;
-        double total_update_time = 0.0;
-        for(unsigned i = 0; i < numBatches; ++i) {
-                assert(i < addition.size());
-                if(!dyntc.checkSorted())
-                        WARN(" ** ***** GRAPH IS NOT SORTED!");
-                timer.start();
-                dyntc.updateBatch(addition[i]);
-                timer.stop();       
-                INFO(" ** ***** Time to update batch[",i,"] = ", timer.elapsedMicroseconds() / 1e6, " secs.");
-                total_update_triangles += dyntc.getNewTriangles();
-                total_update_time += timer.elapsedMicroseconds() / 1e6;
-                
-        }
-
-
-        
-        double final_triangles = dyntc.getTriangleCount();
-        EXPECT_EQ(final_triangles, triangles);        
-        EXPECT_EQ(total_update_triangles, triangles - static_triangles);
-        INFO(" ** ***** Triangles  = ", final_triangles, " = (", static_triangles, " + ",
-             total_update_triangles, ")." );
-        
-        INFO(" ** STATIC_TIME   =  ", static_time );
-        INFO(" ** DYNAMIC_TIME  =  ", total_update_time + starting_time );
-        INFO(" **  = ( ", total_update_time, " + ", starting_time, " )" );
-        
-
-        std::vector<double> t_score = dyntc.getTriangleScores();
-        assert(t_score.size() == G.numberOfNodes());
-        double t_t = 0;
-
-        for (node u = 0; u < G.upperNodeIdBound(); u++) {
-                t_t += t_score[u];
-        }
-        EXPECT_EQ(t_t/3, final_triangles);
-        
-        
-}        
 
 
         
