@@ -8,7 +8,6 @@
 #include <gtest/gtest.h>
 
 #include <networkit/global/ClusteringCoefficient.hpp>
-#include <networkit/global/TriangleCounting.hpp>
 #include <networkit/global/DynTriangleCounting.hpp>
 #include <networkit/graph/GraphTools.hpp>
 
@@ -56,60 +55,6 @@ TEST_F(GlobalGTest, testGlobalClusteringCoefficient) {
 
 
 
-TEST_F(GlobalGTest, testToyGraphTwo) {
-    Graph graph(5);
-
-    graph.addEdge(0,1);
-    graph.addEdge(0,2);
-    graph.addEdge(1,2);
-    graph.addEdge(1,3);
-    graph.addEdge(3,4);
-    graph.addEdge(2,4);
-
-    AlgebraicTriangleCounting<CSRMatrix> atc(graph);
-    atc.run();
-
-    EXPECT_TRUE(atc.hasFinished());
-    std::vector<count> nodeScores = atc.getScores();
-
-    TriangleCounting tc(graph);
-    //tc.run_seq();
-    tc.run_par();
-    EXPECT_TRUE(tc.hasFinished());
-    std::vector<count> nodeTriangles = tc.getTriangleScores();
-    INFO("Printing triangle scores:");
-    for (count i = 0; i < nodeTriangles.size(); i ++) {
-            INFO(" ", nodeTriangles[i]);
-    }
-
-    count triangles = tc.getTriangleCount();
-    INFO("Printing triangle count = ", triangles);
-
-    EXPECT_EQ(1u, nodeScores[0]) << "wrong algebraic triangle count";
-    EXPECT_EQ(1u, nodeScores[1]) << "wrong algebraic triangle count";
-    EXPECT_EQ(1u, nodeScores[2]) << "wrong algebraic triangle count";
-    EXPECT_EQ(0u, nodeScores[3]) << "wrong algebraic triangle count";
-    EXPECT_EQ(0u, nodeScores[4]) << "wrong algebraic triangle count";
-
-    EXPECT_EQ(1u, nodeTriangles[0]) << "wrong triangle count";
-    EXPECT_EQ(1u, nodeTriangles[1]) << "wrong triangle count";
-    EXPECT_EQ(1u, nodeTriangles[2]) << "wrong triangle count";
-    EXPECT_EQ(0u, nodeTriangles[3]) << "wrong triangle count";
-    EXPECT_EQ(0u, nodeTriangles[4]) << "wrong triangle count";
-
-
-    // graph.addEdge(2,3);
-    // atc = AlgebraicTriangleCounting<CSRMatrix>(graph);
-    // atc.run();
-
-    // EXPECT_EQ(1u, atc.score(0)) << "wrong triangle count";
-    // EXPECT_EQ(2u, atc.score(1)) << "wrong triangle count";
-    // EXPECT_EQ(3u, atc.score(2)) << "wrong triangle count";
-    // EXPECT_EQ(2u, atc.score(3)) << "wrong triangle count";
-    // EXPECT_EQ(1u, atc.score(4)) << "wrong triangle count";
-}
-
-        
 
 
 TEST_F(GlobalGTest, testToyDynTriangleCountingI) {
