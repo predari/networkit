@@ -126,12 +126,15 @@ public:
         
 private:
 
-        count bsearch_intersection( node u, node v, const std::vector<node> & u_adj, count u_deg);
         
-        count intersectionCount( node u, std::vector<node> & u_adj, bool u_red,
-                                 node v, std::vector<node> & v_adj, bool v_red, double m);
+        count intersectionCountU( node u, std::vector<node> & u_adj, bool u_red,
+                                  node v, std::vector<node> & v_adj, bool v_red, double m);
+
+        count intersectionCountO( node u, std::vector<node> & u_adj, bool u_red,
+                                  node v, std::vector<node> & v_adj, bool v_red, double m);
         
-        // consider call by ref for adj_inG and adj_inB
+        count intersectionCountR(std::vector<node> & u_adj,std::vector<node> & v_adj);
+        
         count do_merge_insert(const std::vector<node> adj_inG, const count deg_inG,
                               const std::vector<node> adj_inB, const count deg_inB,
                               std::vector<node> & adj_inGI);
@@ -139,7 +142,8 @@ private:
         count do_merge_delete(std::vector<node> & adj_inG, const count deg_inG,
                               const std::vector<node> & adj_inB, const count deg_inB);
 
-        // pointer to new graph
+        count bsearch_intersection( node u, node v, const std::vector<node> & u_adj, count u_deg);
+        
         Graph *G;
         Graph U;
         // current triangle count per node
@@ -153,79 +157,52 @@ private:
 
 };
 
-        // from stringer 
-        count DynTriangleCounting::bsearch_intersection(node u, node v, const std::vector<node> & u_adj, count u_deg) {
-        count t = 0;
-        // parallel?
-        G->forEdgesOf(v, [&](node, node w) {
-                                 if (w != u) {
-                                         int64_t first = 0;
-                                         int64_t last = u_deg-1;
-                                         int64_t middle = (first + last)/2;
-                                         
-                                         while (first <= last) {
-                                                 if (u_adj[middle] < w) {
-                                                         first = middle + 1;
-                                                 } else if (u_adj[middle] == w) {
-                                                         t++;
-                                                         break;
-                                                 } else {
-                                                         last = middle - 1;
-                                                 }                 
-                                                 middle = (first + last)/2;
-                                         }
-                                 }     
-                         });
-        return t;
-}
         
 
+
         void DynTriangleCounting::run() {
-                
-                std::fill(TrianglesPerNode.begin(),  TrianglesPerNode.end(), 0.0);
+
+               std::fill(TrianglesPerNode.begin(),  TrianglesPerNode.end(), 0.0);
                 TrianglesPerNode.resize(G->upperNodeIdBound(), 0.0);
                 t_t = 0;
                 
                 std::vector<std::vector<node> > edges(G->upperNodeIdBound());
-                /* sort edge lists */
-                // Graph needs to be sorted. Make the assumption upon calling method.
+
                 if (!checkSorted(NULL)) {
-                        G->sortEdges();
-                        INFO("** ***** SORTING GRAPH *****");
+                        throw std::runtime_error("adjacency lists should be sorted - call sortEdges first");
                 }
-                else {
-                        INFO("** ***** GRAPH ALREADY SORTED UPON RUN *****");
-                }
-                /* copy edge lists */ 
+                
                 G->balancedParallelForNodes([&](node u) {
                                                     edges[u].reserve(G->degree(u));
                                                     G->forEdgesOf(u, [&](node, node v, edgeid) {
+                                                                             //if (v > u)
                                                                              edges[u].emplace_back(v);
+                                                                             
                                                                      });
                                             });
+
+                G->parallelForEdges([&](node s, node t) {
+                                            double c = 0;
+                                            if ( t != s ) {
+                                                    c = intersectionCountR(edges[s], edges[t]);
+#pragma omp atomic
+                                                    TrianglesPerNode[s] += c/2;
+#pragma omp atomic
+                                                    TrianglesPerNode[t] += c/2;
+                                                    
+                                            }
+                                    });
                 
-                G->balancedParallelForNodes([&](node s) {                                            
-                                                    count s_deg = G->degree(s); 
-                                                    count c = 0;
-                                                    if (edges[s].empty()) {
-                                                            assert(G->isIsolated(s));
-                                                            assert(!s_deg);
-                                                    }
-                                                    G->forEdgesOf(s, [&](node, node t) {
-                                                                             if ( t != s ) {
-                                                                                     c += bsearch_intersection(s, t, edges[s], s_deg);
-                                                                             }
-                                                                     });
-                                                    TrianglesPerNode[s] = c/2;
-                                            });
                 hasRun = true;
                 computeTriangleCount();
                 o_t = t_t;
-        }
+}
 
+
+        
 
         void DynTriangleCounting::updateBatch(const std::vector<GraphEvent>& batch) {
-                // storing previous total count (due to static run)
+
                 o_t = t_t;
                 // check batch input, create batch update graph.
                 bool insertion = true;
@@ -262,8 +239,7 @@ private:
                 
                 // create local adjacency list copies for update graph
                 std::vector<std::vector<node> > edges2(ugraph.upperNodeIdBound());
-                // TODO: consider going through edges instead of nodes since m << n in update graph
-                // TODO: if so, consider costs by locking simultaneous access to nodes 
+
                 ugraph.balancedParallelForNodes([&](node u) {
                                                         if (!ugraph.degree(u)) return;
                                                         edges2[u].reserve(ugraph.degree(u));
@@ -275,17 +251,15 @@ private:
                 
 
                 Aux::Timer timer;
-                if (graphAlreadyUpdated) INFO("** ***** GRAPH ALREADY UPDATED *****");
-                else {
+                if (!graphAlreadyUpdated) {
                         // code to merge two sorted graphs, orignal graph G and update graph 
                         if(!checkSorted(NULL)) {
                                 WARN("** ***** GRAPH WAS NOT SORTED. SORTING NOW! *****");
                                 G->sortEdges();
                         }
                         std::vector<edgeweight> empty;
-                        
                         timer.start();
-                        
+                        // code to merge two sorted graphs, orignal graph G and update graph 
                         GraphBuilder result(G->upperNodeIdBound(), false, false);
                         G->balancedParallelForNodes([&](node v) {
                                                             count current_degree = G->degree(v);
@@ -336,37 +310,56 @@ private:
                         INFO(" ** ***** Time to insert batch =  ", timer.elapsedMicroseconds() / 1e6, " secs.");  
                 }
                 
-                // setting parameters for computing triangles via intersection
+                // setting parameters for update triangle count
                 double mtype1, mtype2, mtype3;
                 if (insertion) {
-                        // for inserting edges
                         mtype1 = 1.0;
                         mtype2 = -1.0;
                         mtype3 = 1.0;
                 }
                 else {
-                        // for deleting edges
                         mtype1 = mtype2 = mtype3 = -1.0;
                         if (!t_t) return;
                 }
 
                 ugraph.parallelForEdges([&](node u, node v) {
 
-                                                // work on updated graph only
-                                                intersectionCount(u, edges[u], false, v, edges[v], false, mtype1); 
-                                                // work on updated (reduced adjacency lists) and update graph (full)
-                                                intersectionCount(u, edges[u], true, v, edges2[v], false, mtype2);
-                                                intersectionCount(v, edges[v], true, u, edges2[u], false, mtype2);
-                                                // // work on update graph only (reduced adjacency lists)
-                                                intersectionCount(u, edges2[u], true, v, edges2[v], true, mtype3); 
+                                                intersectionCountO(u, edges[u], false, v, edges[v], false, mtype1); 
+                                                intersectionCountO(u, edges[u], true, v, edges2[v], false, mtype2);
+                                                intersectionCountO(v, edges[v], true, u, edges2[u], false, mtype2);
+                                                intersectionCountO(u, edges2[u], true, v, edges2[v], true, mtype3); 
                                         });
                 
                 computeTriangleCount();
         }
 
-       
 
-        count DynTriangleCounting::intersectionCount( node u, std::vector<node> & u_adj, bool u_red,
+
+        count DynTriangleCounting::intersectionCountR(std::vector<node> & u_adj, std::vector<node> & v_adj) {
+
+                if ( u_adj.empty() || v_adj.empty() ) return 0;
+                count triangles = 0;
+                node i = 0, j = 0;
+                node u_max = u_adj.size();
+                node v_max = v_adj.size();
+                
+                while(  (i < u_max) && (j < v_max)  ) {
+                        int comp;
+                        comp = u_adj[i] - v_adj[j];
+                        triangles += (comp == 0);
+                        i += (comp <= 0);
+                        j += (comp >= 0);
+                        // if ((i >= u_deg) || (j >= v_deg)) {
+                        //         break;
+                        // }
+                }
+                return triangles;
+        }
+
+        
+        
+
+        count DynTriangleCounting::intersectionCountO( node u, std::vector<node> & u_adj, bool u_red,
                                  node v, std::vector<node> & v_adj, bool v_red, double m) {
 
                 if ( u_adj.empty() || v_adj.empty() ) return 0;
@@ -417,10 +410,71 @@ private:
         
 
 
+        count DynTriangleCounting::intersectionCountU( node u, std::vector<node> & u_adj, bool u_red,
+                                 node v, std::vector<node> & v_adj, bool v_red, double m) {
+
+                if ( u_adj.empty() || v_adj.empty() ) return 0;
+                
+                //std::cout << " e: ( " << u << ", " << v << " ) --> list ( [";
+
+                if ( (u_red && (u_adj[0] > u))  || (v_red && (v_adj[0] > v)) ) return 0;
+                count triangles = 0;
+                node i = 0;
+                auto u_s = u_adj.begin();
+                auto v_s = v_adj.begin();
+
+                auto u_t = u_adj.end();
+                auto v_t = v_adj.end();
+
+                // for (std::vector<node>::iterator it = u_s ; it != u_t; ++it) {
+                //         if (u_red && *it > u)
+                //                 break;
+                //         std::cout << *it << " ";
+
+                // }
+                // std::cout << "] , [";
+                // for (std::vector<node>::iterator it = v_s ; it != v_t; ++it) {
+                //         if (v_red && *it > v)
+                //                 break;
+
+                //         std::cout << *it << " ";
+                // }
+                // std::cout << "]) "<<  std::endl;
+                
+                while( (u_s != u_t) && (v_s != v_t ) ) {
+                        int comp;
+                        //std::cout << *u_s << " - " << *v_s;
+                        //std::cout << " positions : " << i << ", " <<  j << std::endl;
+                        comp = *u_s - *v_s;
+                        triangles += (comp == 0);
+                        if (comp == 0) {
+#pragma omp atomic
+                                TrianglesPerNode[u_adj[i]] += m;
+                                //std::cout << " adding common element count " << u_adj[i] << std::endl;
+                                
+                        }
+                        i += (comp <= 0);
+                        u_s += (comp <= 0);
+                        v_s += (comp >= 0);
+                        if ( (u_red && *u_s > u) )
+                                break;
+                        if (v_red && *v_s > v)
+                                break;
+                }
+#pragma omp atomic
+                TrianglesPerNode[u] += m * triangles;
+#pragma omp atomic
+                TrianglesPerNode[v] += m * triangles;
+                return triangles;
+        }
+
+
+        
 
 
 
-        // deletion merge for a node based on adjacency list in G and B
+
+
         count DynTriangleCounting::do_merge_delete( std::vector<node> & adj_inG, const count deg_inG,
                                                    const std::vector<node> & adj_inB, const count deg_inB) {
                 assert(adj_inG.size() >= deg_inG);
@@ -457,7 +511,7 @@ private:
         
 
         
-        // insertion merge for a node based on adjacency list in G and B
+
         count DynTriangleCounting::do_merge_insert(const std::vector<node> adj_inG, const count deg_inG,
                                                    const std::vector<node> adj_inB, const count deg_inB,
                                                    std::vector<node> & adj_inGI) {
@@ -520,20 +574,50 @@ private:
                 }
         }
 
+        count DynTriangleCounting::bsearch_intersection(node u, node v, const std::vector<node> & u_adj, count u_deg) {
+        count t = 0;
         
+        G->forEdgesOf(v, [&](node, node w) {
+                                 if (w != u) {
+                                         int64_t first = 0;
+                                         int64_t last = u_deg-1;
+                                         int64_t middle = (first + last)/2;
+                                         
+                                         while (first <= last) {
+                                                 if (u_adj[middle] < w) {
+                                                         first = middle + 1;
+                                                 } else if (u_adj[middle] == w) {
+                                                         t++;
+                                                         break;
+                                                 } else {
+                                                         last = middle - 1;
+                                                 }                 
+                                                 middle = (first + last)/2;
+                                         }
+                                 }     
+                         });
+        return t;
+}
+
+
+       
         bool DynTriangleCounting::checkSorted(const Graph * G1 = NULL) {
                 bool res = true;
                 if (G1 == NULL) {
-                        // TODO : break
                         G->balancedParallelForNodes([&] (node u) {
-                                                            if(!std::is_sorted(G->neighborRange(u).begin(), G->neighborRange(u).end()))
+                                                            if(!std::is_sorted(G->neighborRange(u).begin(), G->neighborRange(u).end())) {
                                                                     res = false;
+                                                                    return;
+                                                            }
                                                     });
                 }
                 else {
                         G1->balancedParallelForNodes([&] (node u) {
-                                                             if(!std::is_sorted(G1->neighborRange(u).begin(), G1->neighborRange(u).end()))
+                                                             if(!std::is_sorted(G1->neighborRange(u).begin(), G1->neighborRange(u).end())) {
                                                                      res = false;
+                                                                     return;
+                                                             }
+
                                                      });
                 }
                 return res;

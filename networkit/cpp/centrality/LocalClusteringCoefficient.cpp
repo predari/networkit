@@ -78,6 +78,7 @@ void LocalClusteringCoefficient::run() {
                 nodeMarker[tid][v] = false;
             });
 
+
             scoreData[u] = (double) triangles / (double)(d * (d - 1)); // No division by 2 since triangles are counted twice as well!
             if (turbo) scoreData[u] *= 2; // in turbo mode, we count each triangle only once
         }
